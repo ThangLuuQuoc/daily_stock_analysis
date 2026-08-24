@@ -55,10 +55,29 @@ if [[ "${1:-}" == "--merge-test" ]]; then
         echo "LOI: working tree khong sach. Commit hoac stash truoc khi merge-test."
         exit 2
     fi
+    # Bat buoc phai co merge base. Neu 'vendor' la commit orphan (khong noi vao
+    # history that cua upstream) thi git tu choi merge va ta se dem ra 0 xung dot
+    # => ket luan SAI. Kiem tra truoc.
+    if ! git merge-base --quiet main "$target" >/dev/null 2>&1 \
+       || [[ -z "$(git merge-base main "$target" 2>/dev/null)" ]]; then
+        echo "LOI: khong co merge base giua HEAD va '$target'."
+        echo "     'vendor' phai tro vao COMMIT THAT cua upstream, khong phai commit orphan"
+        echo "     dung tu tarball. Chay: git fetch upstream && git log --oneline vendor"
+        exit 2
+    fi
+
     start_ref=$(git rev-parse --abbrev-ref HEAD)
     echo "=== Thu merge $target vao $start_ref (se abort ngay sau khi dem) ==="
-    git merge --no-commit --no-ff "$target" >/dev/null 2>&1
+    merge_out=$(git merge --no-commit --no-ff "$target" 2>&1)
     mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+    # Merge co the that bai vi ly do khac han xung dot (unrelated histories,
+    # local changes would be overwritten...). Khong duoc coi do la "0 xung dot".
+    if [[ ${#conflicts[@]} -eq 0 ]] && ! git rev-parse --verify --quiet MERGE_HEAD >/dev/null; then
+        echo "LOI: merge khong chay duoc (khong phai vi xung dot). Output cua git:"
+        echo "$merge_out" | sed 's/^/     /'
+        git merge --abort 2>/dev/null || git reset -q --merge 2>/dev/null
+        exit 2
+    fi
     n_conf=${#conflicts[@]}
     total_hunks=0
     for f in "${conflicts[@]}"; do

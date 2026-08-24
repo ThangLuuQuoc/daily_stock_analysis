@@ -123,7 +123,7 @@ Cột **Loại**:
 | `docs/*.md`, `docs/CHANGELOG.md` | BRANCH | thêm mục VN vào tài liệu upstream |
 | `templates/report_{markdown,brief,wechat}.j2` | OVERWRITE | dịch literal |
 | `docker/docker-compose.yml`, `.github/workflows/00-daily-analysis.yml` | HOOK | cấu hình deployment |
-| `CLAUDE.md` | OVERWRITE | −291 dòng (thay hẳn nội dung upstream) |
+| `CLAUDE.md` | — | **KHÔNG phải fork sửa.** Upstream để đây là symlink → `AGENTS.md`; snapshot dựng từ tarball làm nó thành file thường nên trước đó bị đếm sai là `−291 dòng`. Đã phục hồi ở commit `chore(fork): phuc hoi symlink...` |
 | `tests/*` (18 file) | — | **đang đỏ**: assert tiếng Trung nhưng source emit tiếng Việt |
 
 ---
@@ -147,8 +147,8 @@ hoa** → mã VN 3 chữ là tập con. Mỗi module dưới đây là một ch�
 
 | Chỉ số | Hiện tại | Mục tiêu sau Phase 2 | Mục tiêu sau Phase 3 |
 |---|---|---|---|
-| File upstream bị sửa | **67** | ≤ 45 | ≤ 30 |
+| File upstream bị sửa | **66** | ≤ 45 | ≤ 30 |
 | File xung đột khi merge v3.31.0 | **28** | ≤ 18 | ≤ 10 |
-| Hunk xung đột | **~101** | ≤ 60 | ≤ 25 |
+| Hunk xung đột | **98** | ≤ 60 | ≤ 25 |
 
 `scripts/check-fork-surface.sh` fail khi vượt trần đặt trong file đó.
