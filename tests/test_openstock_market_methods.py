@@ -211,18 +211,42 @@ class SymbolUniverseTest(unittest.TestCase):
         resp.json.return_value = {"data": [{"symbol": s} for s in symbols]}
         return patch("requests.get", return_value=resp)
 
-    def test_universe_sua_duoc_ca_false_positive_va_false_negative(self):
-        """Day la ly do ton tai cua GET /stocks."""
-        with self._mock_universe(["FPT", "VNM", "HPG", "FUEVFVND", "E1VFVN30", "VN30F2409"]):
-            # false negative truoc day: ETF va phai sinh khong khop regex 3 chu
+    def test_universe_sua_duoc_false_negative_etf(self):
+        """Ly do ton tai cua GET /stocks: ETF khong khop regex 3 chu.
+
+        Da kiem chung tren DB that (3616 ma): E1VFVN30, E1VFVN31, FUEABVND,
+        FUEBFVND, FUEDCMID, FUEFCV50, FUEVFVND... deu co trong bang `stocks`.
+        """
+        with self._mock_universe(["FPT", "VNM", "HPG", "FUEVFVND", "E1VFVN30"]):
             self.assertTrue(openstock_symbols.is_vn_stock_code("FUEVFVND"))
             self.assertTrue(openstock_symbols.is_vn_stock_code("E1VFVN30"))
-            self.assertTrue(openstock_symbols.is_vn_stock_code("VN30F2409"))
-            # false positive truoc day: ma My 3 chu bi coi la VN
-            self.assertFalse(openstock_symbols.is_vn_stock_code("IBM"))
-            self.assertFalse(openstock_symbols.is_vn_stock_code("AMD"))
-            # ma VN that van dung
             self.assertTrue(openstock_symbols.is_vn_stock_code("FPT"))
+
+    def test_universe_sua_duoc_false_positive_ma_my(self):
+        """Ma My khong co trong universe -> khong con bi nhan sai.
+
+        LUU Y ve pham vi: chi dung voi ma My KHONG trung voi ma VN. Kiem chung
+        tren DB that: IBM/KEY/GEV khong co trong `stocks`, NHUNG **AMD, SSI, VIC
+        deu la ma HOSE that su**. Voi nhung ma trung nay khong co cach nao phan
+        biet bang symbol don le — phai dung suffix tuong minh (FPT.VN / AMD.US)
+        neu muon phuc vu dong thoi ca hai thi truong.
+        """
+        with self._mock_universe(["FPT", "VNM", "AMD"]):
+            self.assertFalse(openstock_symbols.is_vn_stock_code("IBM"))
+            self.assertFalse(openstock_symbols.is_vn_stock_code("GEV"))
+            # AMD la ma HOSE that -> DUNG khi tra ve True
+            self.assertTrue(openstock_symbols.is_vn_stock_code("AMD"))
+
+    def test_phai_sinh_KHONG_nam_trong_universe(self):
+        """Khoa lai gioi han da kiem chung: bang `stocks` co 0 dong VN30Fxxxx.
+
+        Truoc day toi ghi "phai sinh VN30F2409 gio nhan duoc" — SAI. Hop dong
+        tuong lai khong duoc sync vao bang `stocks`, nen universe khong phu.
+        Regex cu cung khong khop (`^[A-Z]{2,4}[0-9]{2,6}$` fail o "30F"), nen
+        khong co hoi quy — chi la gioi han van con.
+        """
+        with self._mock_universe(["FPT", "VNM", "FUEVFVND"]):
+            self.assertFalse(openstock_symbols.is_vn_stock_code("VN30F2409"))
 
     def test_chi_goi_endpoint_mot_lan_nho_cache(self):
         with self._mock_universe(["FPT", "VNM"]) as mock_get:
@@ -239,6 +263,11 @@ class SymbolUniverseTest(unittest.TestCase):
             self.assertFalse(openstock_symbols.is_vn_stock_code("FUEVFVND"))
 
     def test_index_luon_nhan_duoc_khong_can_universe(self):
+        """Chi so KHONG nam trong bang `stocks` (kiem chung: 0 dong).
+
+        Nen `is_vn_index_code()` phai duoc kiem TRUOC khi tra universe. Dung thu
+        tu do la co y — dao lai se lam VNINDEX/VN30 khong nhan duoc nua.
+        """
         with patch("requests.get", side_effect=ConnectionError("down")):
             self.assertTrue(openstock_symbols.is_vn_stock_code("VNINDEX"))
             self.assertTrue(openstock_symbols.is_vn_index_code("VN100"))

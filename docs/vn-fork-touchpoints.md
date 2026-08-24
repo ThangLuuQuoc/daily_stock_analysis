@@ -74,7 +74,8 @@ phần lớn "gap" đã được OpenStock làm xong, chỉ adapter chưa dùng.
 | `get_hot_stocks` | ✅ từ `/dashboard/market/leaders?tab=movers` |
 | `get_limit_up_pool` | ✅ từ `/dashboard/market/ceiling-floor` (nhánh `ceiling`) |
 | `src/core/market_profile.py` `VN_PROFILE` | ⚠️ **BRANCH bắt buộc**: bật `has_market_stats=True`, `has_sector_rankings=True`. Nếu để `False` thì 2 method trên thành dead code — **đúng loại bug đã gặp ở Phase 1** |
-| `openstock_symbols.py` symbol universe | ✅ `GET /stocks` làm nguồn sự thật, cache 6h + backoff 60s khi lỗi, fail-open về regex. Đóng được **cả** false-positive (IBM/AMD/KEY bị coi là mã VN) **và** false-negative (ETF `FUEVFVND`/`E1VFVN30`, phái sinh `VN30F2409`) |
+| `openstock_symbols.py` symbol universe | ✅ `GET /stocks` làm nguồn sự thật, cache 6h + backoff 60s khi lỗi, fail-open về regex. **Đã kiểm chứng trên DB thật (3616 mã)** — xem ô dưới về phạm vi thật sự |
+| ↳ phạm vi thật của universe | **Đóng được**: false-negative ETF (`E1VFVN30`, `E1VFVN31`, `FUEABVND`, `FUEBFVND`, `FUEDCMID`, `FUEFCV50`, `FUEVFVND`… đều có trong `stocks`), và false-positive với mã Mỹ không trùng (`IBM`, `KEY`, `GEV` → 0 dòng). **KHÔNG đóng được**: (a) **phái sinh** — `stocks` có **0 dòng** `VN30Fxxxx`, futures không được sync (regex cũ cũng không khớp nên không hồi quy, chỉ là giới hạn còn nguyên); (b) **mã trùng thật** — `AMD`, `SSI`, `VIC` **đều là mã HOSE thật**, nên không cách nào phân biệt bằng symbol đơn lẻ, phải dùng suffix tường minh (`FPT.VN` / `AMD.US`) nếu muốn phục vụ đồng thời VN và US. (c) **chỉ số** — `stocks` có 0 dòng `VNINDEX`/`VN30`, nên `is_vn_index_code()` **phải** được kiểm TRƯỚC universe; đảo thứ tự sẽ làm chỉ số không nhận được |
 | `VN_INDEX_MAPPING` | ✅ bỏ `HNX30` (OpenStock **không** sync), thêm `VN100` (có sync). Trước đây adapter nhận `HNX30` là mã hợp lệ rồi query rỗng |
 
 Test khoá lại: `tests/test_openstock_market_methods.py` (13 test).
