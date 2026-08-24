@@ -76,8 +76,11 @@ VN_PROFILE = MarketProfile(
         "cổ phiếu Việt Nam hôm nay",
     ],
     prompt_index_hint="Phân tích đặc điểm xu hướng của VN-Index và các chỉ số chính thị trường Việt Nam",
-    has_market_stats=False,
-    has_sector_rankings=False,
+    # OpenStockFetcher đã implement get_market_stats (breadth) + get_sector_rankings
+    # (sectorLeadership) từ /dashboard/market/overview, nên bật hai cờ này lên.
+    # Nếu để False thì hai method đó thành dead code — xem docs/vn-fork-touchpoints.md.
+    has_market_stats=True,
+    has_sector_rankings=True,
 )
 
 

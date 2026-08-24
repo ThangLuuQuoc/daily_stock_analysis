@@ -40,7 +40,7 @@ Cột **Loại**:
 
 | File | Vị trí | Loại | Lý do | Re-apply |
 |---|---|---|---|---|
-| `data_provider/base.py` | `_is_vn_market()` (~193) | HOOK | nhận diện mã VN, gate sau `openstock_enabled` | giữ; nguồn sự thật vẫn là regex (xem §Phase 2b bên dưới — không build symbol-universe vì OpenStock chưa có endpoint liệt kê mã) |
+| `data_provider/base.py` | `_is_vn_market()` (~193) | HOOK | nhận diện mã VN, gate sau `openstock_enabled` | giữ; nguồn sự thật giờ là **symbol universe** từ `GET /stocks` của OpenStock (cache 6h, fail-open về regex) — xem §1.1c |
 | `data_provider/base.py` | `_market_tag()` (~255) | HOOK | trả `"vn"` | 1 dòng, dễ re-apply |
 | `data_provider/base.py` | `_DAILY_MARKET_FETCHER_SUPPORT` (~630) | HOOK | `"OpenStockFetcher": {"vn"}` | 1 dòng |
 | `data_provider/base.py` | `get_fundamental_context()` (~3013) | HOOK ✅ | route `market == "vn"` → `build_vn_fundamental_context` | 3 dòng, đặt TRƯỚC nhánh `us/hk/jp/kr` |
@@ -60,6 +60,30 @@ mã VN rơi vào nhánh A-share nên gọi AkShare với `"FPT"`, và `capital_f
 
 Test khoá lại: `tests/test_vn_fundamental_context.py` (8 test) assert trên **context
 pack pipeline thật dùng**, không phải trên adapter — tháo hook là test đỏ.
+
+### 1.1c Quote enrich + market methods + symbol universe (2026-08-24)
+
+**Bối cảnh:** rà lại code OpenStock hiện tại (thay vì đọc gap-doc từ 2026-06-25) thì
+phần lớn "gap" đã được OpenStock làm xong, chỉ adapter chưa dùng.
+
+| Việc | Trạng thái |
+|---|---|
+| `get_realtime_quote` dùng `/stock/quote?enrich=true` | ✅ 1 call thay vì 2. `getEnrichedQuote()` bên OpenStock có docstring ghi rõ *"Used to build a complete UnifiedRealtimeQuote for the daily_stock_analysis adapter"* — viết cho chính adapter này. Map thêm `volume_ratio`, `turnover_rate`, `change_60d`, `high_52w`, `low_52w`. **3 field đầu render trực tiếp trong bảng prompt** (`src/analyzer.py` ~3432–3438) nên trước đây mọi báo cáo VN đều hiện `N/A`. Giữ fallback về `/fundamentals/:symbol/overview` nếu server chưa hỗ trợ `enrich` |
+| `get_market_stats` | ✅ từ `breadth` của `/dashboard/market/overview`. `limit_up/down_count` dùng số mã chạm trần/sàn (VN không có khái niệm 涨停 như A-share) |
+| `get_sector_rankings` | ✅ từ `sectorLeadership.all` |
+| `get_hot_stocks` | ✅ từ `/dashboard/market/leaders?tab=movers` |
+| `get_limit_up_pool` | ✅ từ `/dashboard/market/ceiling-floor` (nhánh `ceiling`) |
+| `src/core/market_profile.py` `VN_PROFILE` | ⚠️ **BRANCH bắt buộc**: bật `has_market_stats=True`, `has_sector_rankings=True`. Nếu để `False` thì 2 method trên thành dead code — **đúng loại bug đã gặp ở Phase 1** |
+| `openstock_symbols.py` symbol universe | ✅ `GET /stocks` làm nguồn sự thật, cache 6h + backoff 60s khi lỗi, fail-open về regex. Đóng được **cả** false-positive (IBM/AMD/KEY bị coi là mã VN) **và** false-negative (ETF `FUEVFVND`/`E1VFVN30`, phái sinh `VN30F2409`) |
+| `VN_INDEX_MAPPING` | ✅ bỏ `HNX30` (OpenStock **không** sync), thêm `VN100` (có sync). Trước đây adapter nhận `HNX30` là mã hợp lệ rồi query rỗng |
+
+Test khoá lại: `tests/test_openstock_market_methods.py` (13 test).
+
+**Sửa lại kết luận Phase 2b:** lúc đó tôi ghi "OpenStock không có endpoint liệt kê mã"
+dựa trên plan doc mà **chưa đọc code OpenStock**. Thực tế: có route `/tv/symbols`
+nhưng chỉ là **stub TradingView** (`return { /* map from stocks + company_overview */ }`),
+còn bảng `stocks` thì đã đầy đủ. Việc thêm `GET /stocks` chỉ tốn ~35 dòng — rẻ hơn
+nhiều so với giả định lúc đó.
 
 ### 1.2 Config
 

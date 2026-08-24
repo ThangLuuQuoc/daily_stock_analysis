@@ -106,6 +106,55 @@ chỉ cần viết thêm trong `OpenStockFetcher`:
 
 ---
 
+## 4b. Cập nhật 2026-08-24 — rà lại code OpenStock hiện tại
+
+Rà trực tiếp `src/routes/` + `src/services/` + `src/db/schema.ts` của OpenStock (thay
+vì dựa vào bảng gap viết 2026-06-25). Kết quả: **phần lớn gap đã đóng ở phía OpenStock,
+adapter chưa dùng.** Đã sửa adapter (xem `docs/vn-fork-touchpoints.md` §1.1c).
+
+### Đã đóng — không cần làm gì thêm bên OpenStock
+
+| Gap cũ | Thực tế |
+|---|---|
+| Mở rộng `/stock/quote` (pe, pb, marketCap, high52w, low52w, turnoverRatio, volumeRatio, change60d) | ✅ **Đã có** qua `?enrich=true` → `getEnrichedQuote()`. Docstring ghi rõ viết cho adapter này |
+| `GET /stocks/:symbol/ownership` (gap B 5b) | ✅ **Không cần endpoint mới** — `/dashboard/stocks/:symbol` đã trả `ownership.majorShareholders[]` + `insiderTransactions[]` + `foreignOwnedPct/RoomLeftPct/insiderHoldingsPct`. ⚠️ Nhưng xem "Chưa đáng làm" bên dưới |
+| `get_market_stats` / `get_sector_rankings` (Phase 2 C) | ✅ `/dashboard/market/overview` đã có `breadth` + `sectorLeadership` |
+| `get_hot_stocks` / `get_limit_up_pool` | ✅ `/dashboard/market/leaders`, `/dashboard/market/ceiling-floor` |
+| `get_main_indices` — cần `/indices` gọn | ✅ **Không cần**: `syncIndexWorker` lưu VNINDEX/VN30/VN100/HNXINDEX/UPCOMINDEX vào chính `stock_prices`, nên candles/daily endpoint hiện có đã phục vụ được |
+
+### Đã làm bên OpenStock trong đợt này
+
+| # | Việc | File |
+|---|---|---|
+| 1 | `GET /stocks` — liệt kê toàn bộ symbol universe (`?active=true` để lọc), cache theo ngày giao dịch | `src/services/stockService.ts::listAllStocks`, `src/routes/stock.ts` |
+
+Lý do: adapter cần biết "mã này có phải mã VN không" **trước khi** route request.
+`/search?q=` không thay thế được (cần query + `LIMIT 15` cứng). `/tv/symbols` chỉ là
+stub TradingView. Không có universe thì adapter phải đoán bằng regex `^[A-Z]{3}$` —
+vừa nhận sai mã Mỹ 3 chữ, vừa bỏ sót ETF/phái sinh VN.
+
+### Còn lại — cần làm bên OpenStock (theo thứ tự ưu tiên)
+
+| # | Việc | Chi phí | Ghi chú |
+|---|---|---|---|
+| 1 | **Worker nạp `corporate_actions`** (cổ tức) | Cao | Bảng có schema đầy đủ (`DIVIDEND/SPLIT/RIGHTS/BONUS`, `exDate`, `amount`, `ratio`) nhưng `grep corporateActions src/workers/` = **0 hit** → bảng rỗng. Đây là gap **thu thập dữ liệu**, không phải gap endpoint. Cần worker fetch từ VCI/KBS trước, rồi mới thêm endpoint. Prompt của analyzer có bảng "财报与分红" đọc `dividend.ttm_cash_dividend_per_share` / `ttm_dividend_yield_pct` / `ttm_event_count` — hiện chỉ có `dividend_yield` từ overview |
+| 2 | **Backfill `amount` + `foreign_net_value` lịch sử** | Phụ thuộc nguồn | `syncDailyWorker.snapshotRealtimeIntoDaily()` chỉ copy `quotes` → bar **cùng ngày**, nên bar lịch sử vẫn NULL. Adapter đang ước lượng `close*volume*1000`, và `get_capital_flow` có thể ra `not_supported` với mã ít dữ liệu khối ngoại. Không sửa retroactive được **trừ khi** VCI/KBS có API lịch sử cho 2 chỉ tiêu này — cần kiểm tra trước khi hứa |
+| 3 | Top gainers/losers **theo từng ngành** | Thấp | `/sectors` chưa có. Nhưng `sectorLeadership.all` đã đủ cho prompt hiện tại → ưu tiên thấp |
+
+### Chưa đáng làm — sẽ thành dead code
+
+`institution` block (`institution_holding_change`, `top10_holder_change`) **không được
+prompt nào đọc**. Kiểm tra: `src/analyzer.py` chỉ consume `earnings` (financial_report +
+dividend) và `capital_flow`; `grep institution` trong `src/` = 0 hit ngoài
+`data_provider/`. Nên dù `/dashboard/stocks/:symbol` đã có sẵn `majorShareholders`,
+nối nó vào adapter bây giờ sẽ lặp lại đúng bug Phase 1 (viết code không ai gọi).
+
+Thêm nữa, 2 field đó là **delta** (thay đổi tỉ lệ nắm giữ) còn OpenStock chỉ có
+snapshot hiện tại — muốn tính delta phải đọc nhiều bản `ownership_snapshots` theo thời
+gian. Làm khi nào prompt thực sự cần.
+
+---
+
 ## 5. Lưu ý đơn vị (đã xử lý trong adapter)
 
 - Giá `open/high/low/close`: **nghìn VND** (71 == 71.000 VND). Lịch sử & realtime cùng đơn vị.
