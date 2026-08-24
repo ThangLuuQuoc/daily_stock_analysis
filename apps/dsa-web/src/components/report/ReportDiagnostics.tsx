@@ -93,6 +93,36 @@ const TEXT = {
       skipped: 'Skipped',
     },
   },
+  vi: {
+    eyebrow: 'CHẨN ĐOÁN VẬN HÀNH',
+    title: 'Trạng thái vận hành',
+    loading: 'Đang tải chẩn đoán...',
+    unavailable: 'Chẩn đoán tạm không khả dụng',
+    noComponents: 'Chưa có chẩn đoán thành phần',
+    components: 'Chuỗi quan trọng',
+    advanced: 'Trường nâng cao',
+    copy: 'Sao chép thông tin gỡ lỗi',
+    copied: 'Đã sao chép',
+    scope: 'Chuỗi lấy dữ liệu / LLM / lưu / thông báo',
+    trace: 'Trace',
+    task: 'Task',
+    query: 'Query',
+    trigger: 'Nguồn kích hoạt',
+    overall: {
+      normal: 'Bình thường',
+      degraded: 'Suy giảm một phần',
+      failed: 'Thất bại',
+      unknown: 'Không rõ',
+    },
+    component: {
+      ok: 'Bình thường',
+      degraded: 'Vừa gặp lỗi gần đây',
+      failed: 'Thất bại',
+      unknown: 'Không rõ',
+      not_configured: 'Chưa cấu hình',
+      skipped: 'Đã bỏ qua',
+    },
+  },
 } as const;
 
 const OVERALL_STATUS_STYLE: Record<RunDiagnosticStatus, { variant: BadgeVariant; tone: StatusTone }> = {

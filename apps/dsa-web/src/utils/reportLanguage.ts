@@ -1,7 +1,17 @@
 import type { ReportLanguage } from '../types/analysis';
 
-export const normalizeReportLanguage = (value?: string | null): ReportLanguage =>
-  value === 'en' ? 'en' : 'zh';
+export const normalizeReportLanguage = (value?: string | null): ReportLanguage => {
+  if (value === 'en') return 'en';
+  if (value === 'vi') return 'vi';
+  return 'zh';
+};
+
+// Ánh xạ ngôn ngữ UI sang ngôn ngữ báo cáo: vi → vi, en → en, còn lại → zh.
+export const uiToReportLanguage = (value?: string | null): ReportLanguage => {
+  if (value === 'vi') return 'vi';
+  if (value === 'en') return 'en';
+  return 'zh';
+};
 
 const REPORT_TEXT = {
   zh: {
@@ -95,6 +105,52 @@ const REPORT_TEXT = {
     laggingBoard: 'Lagging',
     neutralBoard: 'Neutral',
     reanalyze: 'Reanalyze',
+  },
+  vi: {
+    keyInsights: 'Nhận định cốt lõi',
+    noAnalysisSummary: 'Chưa có kết luận phân tích',
+    actionAdvice: 'Khuyến nghị hành động',
+    noAdvice: 'Chưa có khuyến nghị',
+    trendPrediction: 'Dự báo xu hướng',
+    noPrediction: 'Chưa có dự báo',
+    marketSentiment: 'Tâm lý thị trường',
+    strategyPoints: 'Điểm chiến lược',
+    sniperLevels: 'Vùng giá hành động',
+    idealBuy: 'Điểm mua lý tưởng',
+    secondaryBuy: 'Điểm mua bổ sung',
+    stopLoss: 'Cắt lỗ',
+    takeProfit: 'Chốt lời',
+    noValue: '—',
+    newsFeed: 'Dòng tin tức',
+    relatedNews: 'Tin liên quan',
+    refresh: 'Làm mới',
+    retry: 'Thử lại',
+    dismiss: 'Đóng',
+    details: 'Xem chi tiết',
+    loadingNews: 'Đang tải tin tức...',
+    noNews: 'Không có tin liên quan',
+    noNewsDescription: 'Hãy làm mới sau để xem tin mới nhất.',
+    openLink: 'Mở',
+    transparency: 'Minh bạch',
+    traceability: 'Truy vết dữ liệu',
+    rawResult: 'Kết quả phân tích gốc',
+    analysisSnapshot: 'Ảnh chụp phân tích',
+    copy: 'Sao chép',
+    copied: 'Đã sao chép!',
+    recordId: 'Mã bản ghi',
+    fullReport: 'Báo cáo đầy đủ',
+    loadingReport: 'Đang tải báo cáo...',
+    loadReportFailed: 'Tải báo cáo thất bại',
+    copyMarkdownSource: 'Sao chép mã nguồn Markdown',
+    copyPlainText: 'Sao chép văn bản thuần',
+    analysisModel: 'Mô hình',
+    fearGreedIndex: 'Chỉ số Sợ hãi & Tham lam',
+    boardLinkage: 'Liên động ngành',
+    relatedBoards: 'Ngành liên quan',
+    leadingBoard: 'Dẫn dắt',
+    laggingBoard: 'Tụt hậu',
+    neutralBoard: 'Trung tính',
+    reanalyze: 'Phân tích lại',
   },
 } as const;
 

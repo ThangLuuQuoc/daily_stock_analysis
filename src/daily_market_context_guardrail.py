@@ -32,7 +32,7 @@ _GUARDRAIL_SENTIMENT_SCORE = 52
 
 
 def _softened_operation_advice(language: str) -> str:
-    return "Watch" if language == "en" else "观望"
+    return "Watch" if language == "en" else "Quan sát"
 
 
 def apply_daily_market_context_guardrail(
@@ -61,7 +61,7 @@ def apply_daily_market_context_guardrail(
     result.operation_advice = softened_advice
 
     if _is_high_confidence(getattr(result, "confidence_level", "")):
-        result.confidence_level = "Medium" if language == "en" else "中"
+        result.confidence_level = "Medium" if language == "en" else "Trung bình"
         adjustments.append("confidence_capped_daily_market_context")
 
     result.sentiment_score = _cap_conservative_sentiment_score(
@@ -117,8 +117,8 @@ def _softened_position_advice(language: str) -> dict[str, str]:
             "has_position": "Hold only a small position; do not increase exposure, and reduce if risk controls break.",
         }
     return {
-        "no_position": "大盘环境偏谨慎，暂不开新仓，等待风险缓解或确认信号。",
-        "has_position": "仅保留小仓观察，暂不扩大仓位；若跌破风控位优先降低仓位。",
+        "no_position": "Bối cảnh thị trường chung thiên về thận trọng, tạm chưa mở vị thế mới, chờ rủi ro giảm bớt hoặc tín hiệu xác nhận.",
+        "has_position": "Chỉ giữ tỷ trọng nhỏ để quan sát, tạm chưa mở rộng vị thế; nếu thủng ngưỡng kiểm soát rủi ro thì ưu tiên giảm tỷ trọng.",
     }
 
 
@@ -131,9 +131,9 @@ def _softened_position_strategy(language: str) -> dict[str, str]:
             "risk_control": "Do not increase exposure before market risk eases; control drawdown strictly.",
         }
     return {
-        "suggested_position": "小仓/低仓位",
+        "suggested_position": "Tỷ trọng nhỏ/thấp",
         "entry_plan": position_advice["no_position"],
-        "risk_control": "大盘风险未缓解前不扩大仓位，严格控制回撤。",
+        "risk_control": "Trước khi rủi ro thị trường chung giảm bớt thì không mở rộng vị thế, kiểm soát mức sụt giảm chặt chẽ.",
     }
 
 

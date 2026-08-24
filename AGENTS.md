@@ -81,6 +81,8 @@ python scripts/check_ai_assets.py
 
 ## 4. 常用命令
 
+> 本地全栈启动顺序与命令（OpenStock 数据源 / freellmapi LLM 网关 / 后端 / Web）见 `docs/local-dev-startup.md`。
+
 ### 运行应用
 
 ```bash

@@ -1,3 +1,4 @@
+import type { UiLanguage } from '../i18n/uiText';
 import type {
   PortfolioCashDirection,
   PortfolioCorporateActionType,
@@ -53,34 +54,53 @@ export function formatPositionMoney(value: number, row: PortfolioPositionItem): 
   return formatMoney(value, row.valuationCurrency);
 }
 
-export function getPositionPriceLabel(row: PortfolioPositionItem): string {
-  if (!hasPositionPrice(row)) return '缺价';
+const POSITION_PRICE_MISSING: Record<UiLanguage, string> = { zh: '缺价', en: 'No price', vi: 'Thiếu giá' };
+const POSITION_PRICE_REALTIME: Record<UiLanguage, string> = { zh: '实时价', en: 'Real-time', vi: 'Giá realtime' };
+const POSITION_PRICE_CLOSE: Record<UiLanguage, string> = { zh: '收盘价', en: 'Close price', vi: 'Giá đóng cửa' };
+const POSITION_PRICE_UNKNOWN: Record<UiLanguage, string> = { zh: '未知来源', en: 'Unknown source', vi: 'Nguồn không xác định' };
+
+export function getPositionPriceLabel(row: PortfolioPositionItem, language: UiLanguage = 'vi'): string {
+  if (!hasPositionPrice(row)) return POSITION_PRICE_MISSING[language];
   if (row.priceSource === 'realtime_quote') {
-    return row.priceProvider ? `实时价 · ${row.priceProvider}` : '实时价';
+    return row.priceProvider ? `${POSITION_PRICE_REALTIME[language]} · ${row.priceProvider}` : POSITION_PRICE_REALTIME[language];
   }
   if (row.priceSource === 'history_close') {
-    return row.priceStale && row.priceDate ? `收盘价 · ${row.priceDate}` : '收盘价';
+    return row.priceStale && row.priceDate ? `${POSITION_PRICE_CLOSE[language]} · ${row.priceDate}` : POSITION_PRICE_CLOSE[language];
   }
-  return row.priceSource || '未知来源';
+  return row.priceSource || POSITION_PRICE_UNKNOWN[language];
 }
 
-export function formatSideLabel(value: PortfolioSide): string {
-  return value === 'buy' ? '买入' : '卖出';
+const SIDE_BUY: Record<UiLanguage, string> = { zh: '买入', en: 'Buy', vi: 'Mua' };
+const SIDE_SELL: Record<UiLanguage, string> = { zh: '卖出', en: 'Sell', vi: 'Bán' };
+
+export function formatSideLabel(value: PortfolioSide, language: UiLanguage = 'vi'): string {
+  return value === 'buy' ? SIDE_BUY[language] : SIDE_SELL[language];
 }
 
-export function formatCashDirectionLabel(value: PortfolioCashDirection): string {
-  return value === 'in' ? '流入' : '流出';
+const CASH_IN: Record<UiLanguage, string> = { zh: '流入', en: 'Inflow', vi: 'Nạp tiền' };
+const CASH_OUT: Record<UiLanguage, string> = { zh: '流出', en: 'Outflow', vi: 'Rút tiền' };
+
+export function formatCashDirectionLabel(value: PortfolioCashDirection, language: UiLanguage = 'vi'): string {
+  return value === 'in' ? CASH_IN[language] : CASH_OUT[language];
 }
 
-export function formatCorporateActionLabel(value: PortfolioCorporateActionType): string {
-  return value === 'cash_dividend' ? '现金分红' : '拆并股调整';
+const CORP_DIVIDEND: Record<UiLanguage, string> = { zh: '现金分红', en: 'Cash dividend', vi: 'Cổ tức tiền mặt' };
+const CORP_SPLIT: Record<UiLanguage, string> = { zh: '拆并股调整', en: 'Split adjustment', vi: 'Điều chỉnh tách/gộp cổ phiếu' };
+
+export function formatCorporateActionLabel(value: PortfolioCorporateActionType, language: UiLanguage = 'vi'): string {
+  return value === 'cash_dividend' ? CORP_DIVIDEND[language] : CORP_SPLIT[language];
 }
 
-export function formatBrokerLabel(value: string, displayName?: string): string {
+const BROKER_DISPLAY_NAMES: Record<string, Record<UiLanguage, string>> = {
+  huatai: { zh: '华泰', en: 'Huatai', vi: 'Huatai' },
+  citic: { zh: '中信', en: 'CITIC', vi: 'CITIC' },
+  cmb: { zh: '招商', en: 'CMB', vi: 'CMB' },
+};
+
+export function formatBrokerLabel(value: string, displayName?: string, language: UiLanguage = 'vi'): string {
   if (displayName && displayName.trim()) return `${value}（${displayName.trim()}）`;
-  if (value === 'huatai') return 'huatai（华泰）';
-  if (value === 'citic') return 'citic（中信）';
-  if (value === 'cmb') return 'cmb（招商）';
+  const known = BROKER_DISPLAY_NAMES[value];
+  if (known) return `${value}（${known[language]}）`;
   return value;
 }
 

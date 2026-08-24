@@ -54,23 +54,23 @@ def detect_market(stock_code: Optional[str]) -> str:
 
 _MARKET_ROLES = {
     "cn": {
-        "zh": " A 股",
+        "zh": "cổ phiếu A-share",
         "en": "China A-shares",
     },
     "hk": {
-        "zh": "港股",
+        "zh": "cổ phiếu Hồng Kông",
         "en": "Hong Kong stock",
     },
     "us": {
-        "zh": "美股",
+        "zh": "cổ phiếu Mỹ",
         "en": "US stock",
     },
     "jp": {
-        "zh": "日股",
+        "zh": "cổ phiếu Nhật",
         "en": "Japan stock",
     },
     "kr": {
-        "zh": "韩股",
+        "zh": "cổ phiếu Hàn Quốc",
         "en": "Korea stock",
     },
 }
@@ -78,8 +78,8 @@ _MARKET_ROLES = {
 _MARKET_GUIDELINES = {
     "cn": {
         "zh": (
-            "- 本次分析对象为 **A 股**（中国沪深交易所上市股票）。\n"
-            "- 请关注 A 股特有的涨跌停机制（±10%/±20%/±30%）、T+1 交易制度及相关政策因素。"
+            "- Đối tượng phân tích lần này là **cổ phiếu A-share** (niêm yết trên sàn Thượng Hải/Thâm Quyến của Trung Quốc).\n"
+            "- Hãy chú ý cơ chế trần/sàn đặc thù của A-share (±10%/±20%/±30%), chế độ giao dịch T+1 và các yếu tố chính sách liên quan."
         ),
         "en": (
             "- This analysis covers a **China A-share** (listed on Shanghai/Shenzhen exchanges).\n"
@@ -88,8 +88,8 @@ _MARKET_GUIDELINES = {
     },
     "hk": {
         "zh": (
-            "- 本次分析对象为 **港股**（香港交易所上市股票）。\n"
-            "- 港股无涨跌停限制，支持 T+0 交易，需关注港币汇率、南北向资金流及联交所特有规则。"
+            "- Đối tượng phân tích lần này là **cổ phiếu Hồng Kông** (niêm yết trên Sở giao dịch Hồng Kông).\n"
+            "- Cổ phiếu Hồng Kông không có giới hạn trần/sàn, hỗ trợ giao dịch T+0, cần chú ý tỷ giá HKD, dòng vốn Nam-Bắc và các quy tắc đặc thù của HKEX."
         ),
         "en": (
             "- This analysis covers a **Hong Kong stock** (listed on HKEX).\n"
@@ -98,8 +98,8 @@ _MARKET_GUIDELINES = {
     },
     "us": {
         "zh": (
-            "- 本次分析对象为 **美股**（美国交易所上市股票）。\n"
-            "- 美股无涨跌停限制（但有熔断机制），支持 T+0 交易和盘前盘后交易，需关注美元汇率、美联储政策及 SEC 监管动态。"
+            "- Đối tượng phân tích lần này là **cổ phiếu Mỹ** (niêm yết trên sàn Mỹ).\n"
+            "- Cổ phiếu Mỹ không có giới hạn trần/sàn (nhưng có cơ chế ngắt mạch), hỗ trợ giao dịch T+0 và giao dịch trước/sau giờ, cần chú ý tỷ giá USD, chính sách của Fed và động thái giám sát của SEC."
         ),
         "en": (
             "- This analysis covers a **US stock** (listed on NYSE/NASDAQ).\n"
@@ -108,8 +108,8 @@ _MARKET_GUIDELINES = {
     },
     "jp": {
         "zh": (
-            "- 本次分析对象为 **日股**（日本交易所上市股票，Yahoo Finance suffix 如 `.T`）。\n"
-            "- 请按日本市场语境分析，关注日元汇率、日本央行政策、公司治理与行业周期；不要套用 A 股涨跌停、北向资金、龙虎榜、融资融券等 A 股专属概念。"
+            "- Đối tượng phân tích lần này là **cổ phiếu Nhật** (niêm yết trên sàn Nhật, hậu tố Yahoo Finance như `.T`).\n"
+            "- Hãy phân tích theo bối cảnh thị trường Nhật, chú ý tỷ giá JPY, chính sách của BOJ, quản trị doanh nghiệp và chu kỳ ngành; không áp dụng các khái niệm đặc thù của A-share như trần/sàn, dòng vốn phía Bắc, bảng Long Hổ, ký quỹ."
         ),
         "en": (
             "- This analysis covers a **Japan stock** (Yahoo Finance suffix such as `.T`).\n"
@@ -118,8 +118,8 @@ _MARKET_GUIDELINES = {
     },
     "kr": {
         "zh": (
-            "- 本次分析对象为 **韩股**（韩国交易所/KOSDAQ 上市股票，必须带 `.KS` / `.KQ` 后缀）。\n"
-            "- 请按韩国市场语境分析，关注韩元汇率、韩国央行政策、半导体/互联网产业周期与韩国交易制度；不要套用 A 股涨跌停、北向资金、龙虎榜、融资融券等 A 股专属概念。"
+            "- Đối tượng phân tích lần này là **cổ phiếu Hàn Quốc** (niêm yết trên sàn Hàn Quốc/KOSDAQ, bắt buộc có hậu tố `.KS` / `.KQ`).\n"
+            "- Hãy phân tích theo bối cảnh thị trường Hàn Quốc, chú ý tỷ giá KRW, chính sách của Ngân hàng Trung ương Hàn Quốc, chu kỳ ngành bán dẫn/internet và chế độ giao dịch Hàn Quốc; không áp dụng các khái niệm đặc thù của A-share như trần/sàn, dòng vốn phía Bắc, bảng Long Hổ, ký quỹ."
         ),
         "en": (
             "- This analysis covers a **Korea stock** (KOSPI/KOSDAQ suffix `.KS` / `.KQ`).\n"

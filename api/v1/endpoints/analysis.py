@@ -174,7 +174,7 @@ def _run_market_review_background(
 
 
 def _invalid_analysis_input_error() -> HTTPException:
-    return api_error(400, "validation_error", "请输入有效的股票代码或股票名称")
+    return api_error(400, "validation_error", "Please enter a valid stock code or name")
 
 
 def _is_obviously_invalid_analysis_input(text: str) -> bool:
@@ -291,10 +291,10 @@ def trigger_analysis(
     # Limit the number of stocks in a single request to prevent DoS
     MAX_BATCH_SIZE = 50
     if len(stock_codes) > MAX_BATCH_SIZE:
-        raise api_error(400, "validation_error", f"单次分析请求最多支持 {MAX_BATCH_SIZE} 只股票")
+        raise api_error(400, "validation_error", f"A single analysis request supports at most {MAX_BATCH_SIZE} stocks")
 
     if not stock_codes:
-        raise api_error(400, "validation_error", "股票代码不能为空或仅包含空白字符")
+        raise api_error(400, "validation_error", "Stock code cannot be empty or whitespace only")
 
     # Sync mode only supports single-stock analysis.
     if not request.async_mode:
@@ -302,7 +302,7 @@ def trigger_analysis(
             raise api_error(
                 400,
                 "validation_error",
-                "同步模式仅支持单只股票分析，请使用 async_mode=true 进行批量分析",
+                "Sync mode supports a single stock only; use async_mode=true for batch analysis",
             )
         return _handle_sync_analysis(stock_codes[0], request)
 
@@ -438,7 +438,7 @@ def _handle_sync_analysis(
         )
 
         if result is None:
-            error_message = service.last_error or f"分析股票 {stock_code} 失败"
+            error_message = service.last_error or f"Failed to analyze stock {stock_code}"
             raise api_error(500, "analysis_failed", error_message)
 
         # 构建报告结构
@@ -523,8 +523,8 @@ def trigger_market_review(
                 query_id=task_id,
             ),
             stock_code="market_review",
-            stock_name="大盘复盘",
-            message="大盘复盘任务已提交",
+            stock_name="Phân tích thị trường",
+            message="Đã gửi yêu cầu phân tích thị trường",
             task_id=task_id,
         )
     except Exception:
@@ -533,7 +533,7 @@ def trigger_market_review(
 
     return MarketReviewAccepted(
         status="accepted",
-        message="大盘复盘任务已提交，完成后会保存报告并按配置推送通知",
+        message="Đã gửi yêu cầu phân tích thị trường; báo cáo sẽ được lưu và gửi thông báo theo cấu hình.",
         send_notification=request.send_notification,
         task_id=task.task_id,
         trace_id=_get_task_trace_id(task),

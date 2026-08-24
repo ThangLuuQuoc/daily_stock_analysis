@@ -409,7 +409,7 @@ class StockAnalysisPipeline:
                 target_date=daily_market_target_date,
             )
 
-            self._emit_progress(18, f"{code}：正在获取行情与筹码数据")
+            self._emit_progress(18, f"{code}: Đang lấy dữ liệu giá & giao dịch")
             # 获取股票名称（先走轻量名称路径，后续若 realtime_quote 有 name 再覆盖）
             stock_name = self.fetcher_manager.get_stock_name(code, allow_realtime=False)
 
@@ -435,9 +435,9 @@ class StockAnalysisPipeline:
             except Exception as e:
                 logger.warning(f"{stock_name}({code}) 实时行情链路异常，已降级为历史收盘价继续分析: {e}")
 
-            # 如果还是没有名称，使用代码作为名称
+            # 如果还是没有名称，使用代码作为名称（trung lập ngôn ngữ, tránh "股票{code}")
             if not stock_name:
-                stock_name = f'股票{code}'
+                stock_name = code
 
             # Step 2: 获取筹码分布 - 使用统一入口，带熔断保护
             chip_data = None
@@ -468,7 +468,7 @@ class StockAnalysisPipeline:
                     use_agent = True
                     logger.info(f"{stock_name}({code}) Auto-enabled agent mode due to configured skills: {configured_skills}")
 
-            self._emit_progress(32, f"{stock_name}：正在聚合基本面与趋势数据")
+            self._emit_progress(32, f"{stock_name}: Đang tổng hợp dữ liệu cơ bản & xu hướng")
 
             # Step 2.5: 基本面能力聚合（统一入口，异常降级）
             # - 失败时返回 partial/failed，不影响既有技术面/新闻链路
@@ -526,7 +526,7 @@ class StockAnalysisPipeline:
 
             if use_agent:
                 logger.info(f"{stock_name}({code}) 启用 Agent 模式进行分析")
-                self._emit_progress(58, f"{stock_name}：正在切换 Agent 分析链路")
+                self._emit_progress(58, f"{stock_name}: Đang chuyển luồng phân tích Agent")
                 return self._analyze_with_agent(
                     code,
                     report_type,
@@ -550,7 +550,7 @@ class StockAnalysisPipeline:
                 market=market or "cn",
             )
             news_result_count: Optional[int] = None
-            self._emit_progress(46, f"{stock_name}：正在检索新闻与舆情")
+            self._emit_progress(46, f"{stock_name}: Đang tìm tin tức & dư luận")
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
 
@@ -610,7 +610,7 @@ class StockAnalysisPipeline:
                 )
 
             # Step 5: 获取分析上下文（技术面数据）
-            self._emit_progress(58, f"{stock_name}：正在整理分析上下文")
+            self._emit_progress(58, f"{stock_name}: Đang chuẩn bị ngữ cảnh phân tích")
             context = self._get_analysis_context_with_market_fallback(code)
 
             if context is None:
@@ -681,10 +681,10 @@ class StockAnalysisPipeline:
                 llm_progress_state["last_progress"] = dynamic_progress
                 self._emit_progress(
                     dynamic_progress,
-                    f"{stock_name}：LLM 正在生成分析结果（已接收 {chars_received} 字符）",
+                    f"{stock_name}: LLM đang tạo kết quả phân tích (đã nhận {chars_received} ký tự)",
                 )
 
-            self._emit_progress(64, f"{stock_name}：正在请求 LLM 生成报告")
+            self._emit_progress(64, f"{stock_name}: Đang yêu cầu LLM tạo báo cáo")
             llm_started_at = time.monotonic()
             try:
                 record_llm_run_started(
@@ -728,7 +728,7 @@ class StockAnalysisPipeline:
 
             # Step 7.5: 填充分析时的价格信息到 result
             if result:
-                self._emit_progress(94, f"{stock_name}：正在校验并整理分析结果")
+                self._emit_progress(94, f"{stock_name}: Đang kiểm tra & sắp xếp kết quả phân tích")
                 result.query_id = query_id
                 realtime_data = enhanced_context.get('realtime', {})
                 result.current_price = realtime_data.get('price')
@@ -777,7 +777,7 @@ class StockAnalysisPipeline:
             # Step 8: 保存分析历史记录
             if result and result.success:
                 try:
-                    self._emit_progress(97, f"{stock_name}：正在保存分析报告")
+                    self._emit_progress(97, f"{stock_name}: Đang lưu báo cáo phân tích")
                     context_snapshot = self._build_context_snapshot(
                         enhanced_context=enhanced_context,
                         news_content=news_context,
@@ -2710,7 +2710,7 @@ class StockAnalysisPipeline:
                 trigger_source=getattr(self, "query_source", None),
             )
         try:
-            self._emit_progress(12, f"{code}：正在准备分析任务")
+            self._emit_progress(12, f"{code}: Đang chuẩn bị tác vụ phân tích")
             # Step 1: 获取并保存数据
             success, error = self.fetch_and_save_stock_data(
                 code, current_time=current_time
@@ -2720,7 +2720,7 @@ class StockAnalysisPipeline:
                 logger.warning(f"[{code}] 数据获取失败: {error}")
                 # 即使获取失败，也尝试用已有数据分析
             else:
-                self._emit_progress(16, f"{code}：行情数据准备完成")
+                self._emit_progress(16, f"{code}: Đã chuẩn bị xong dữ liệu giá")
             
             # Step 2: AI 分析
             if skip_analysis:

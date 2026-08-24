@@ -1,8 +1,22 @@
+import type { UiLanguage } from '../i18n/uiText';
+
 interface ValidationResult {
   valid: boolean;
   message?: string;
   normalized: string;
 }
+
+const STOCK_CODE_REQUIRED: Record<UiLanguage, string> = {
+  zh: '请输入股票代码',
+  en: 'Please enter a stock code',
+  vi: 'Vui lòng nhập mã cổ phiếu',
+};
+
+const STOCK_CODE_INVALID: Record<UiLanguage, string> = {
+  zh: '股票代码格式不正确',
+  en: 'Invalid stock code format',
+  vi: 'Định dạng mã cổ phiếu không hợp lệ',
+};
 
 const SUPPORTED_QUERY_CHARACTERS = /^[A-Z0-9.\u3400-\u9FFF\s]+$/;
 
@@ -29,18 +43,18 @@ export const looksLikeStockCode = (value: string): boolean => {
 /**
  * Validate common A-share, HK, US, JP, and KR stock code formats.
  */
-export const validateStockCode = (value: string): ValidationResult => {
+export const validateStockCode = (value: string, language: UiLanguage = 'vi'): ValidationResult => {
   const normalized = value.trim().toUpperCase();
 
   if (!normalized) {
-    return { valid: false, message: '请输入股票代码', normalized };
+    return { valid: false, message: STOCK_CODE_REQUIRED[language], normalized };
   }
 
   const valid = looksLikeStockCode(normalized);
 
   return {
     valid,
-    message: valid ? undefined : '股票代码格式不正确',
+    message: valid ? undefined : STOCK_CODE_INVALID[language],
     normalized,
   };
 };

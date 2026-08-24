@@ -7,13 +7,13 @@ from typing import Any, Dict, List, Optional
 
 
 _PHASE_LABELS_ZH = {
-    "premarket": "盘前",
-    "intraday": "盘中",
-    "lunch_break": "午间休市",
-    "closing_auction": "临近收盘",
-    "postmarket": "盘后",
-    "non_trading": "非交易日",
-    "unknown": "未知阶段",
+    "premarket": "trước phiên",
+    "intraday": "trong phiên",
+    "lunch_break": "nghỉ trưa",
+    "closing_auction": "gần đóng cửa",
+    "postmarket": "sau phiên",
+    "non_trading": "ngày không giao dịch",
+    "unknown": "giai đoạn chưa rõ",
 }
 
 _PHASE_LABELS_EN = {
@@ -29,9 +29,9 @@ _PHASE_LABELS_EN = {
 _KNOWN_PHASES = set(_PHASE_LABELS_ZH)
 
 _WARNING_LABELS_ZH = {
-    "unknown_market": "未知市场",
-    "calendar_unavailable": "交易日历不可用",
-    "calendar_error": "交易日历异常",
+    "unknown_market": "thị trường chưa rõ",
+    "calendar_unavailable": "lịch giao dịch không khả dụng",
+    "calendar_error": "lỗi lịch giao dịch",
 }
 
 _WARNING_LABELS_EN = {
@@ -67,13 +67,13 @@ def format_market_phase_prompt_section(
 
 def _format_zh(ctx: Dict[str, Any], phase: str) -> str:
     label = _PHASE_LABELS_ZH[phase]
-    lines = ["", "## 市场阶段上下文", f"- 当前市场阶段：{label}"]
+    lines = ["", "## Bối cảnh giai đoạn thị trường", f"- Giai đoạn thị trường hiện tại: {label}"]
     lines.extend(_metadata_lines_zh(ctx))
-    lines.append(f"- 阶段约束：{_phase_rule_zh(ctx, phase)}")
+    lines.append(f"- Ràng buộc giai đoạn: {_phase_rule_zh(ctx, phase)}")
 
     warning_text = _warning_text(ctx.get("warnings"), lang="zh")
     if warning_text:
-        lines.append(f"- 降级说明：{warning_text}，请保持保守表述。")
+        lines.append(f"- Ghi chú suy giảm: {warning_text}, hãy giữ cách diễn đạt thận trọng.")
 
     return "\n".join(lines) + "\n"
 
@@ -100,15 +100,15 @@ def _metadata_lines_zh(ctx: Dict[str, Any]) -> List[str]:
     minutes_to_close = _int_like(ctx.get("minutes_to_close"))
 
     if market:
-        items.append(f"- 市场：{market}")
+        items.append(f"- Thị trường: {market}")
     if market_time:
-        items.append(f"- 市场本地时间：{market_time}")
+        items.append(f"- Giờ địa phương thị trường: {market_time}")
     if effective_date:
-        items.append(f"- 最新可复用完整日线日期：{effective_date}")
+        items.append(f"- Ngày nến ngày hoàn chỉnh mới nhất có thể tái sử dụng: {effective_date}")
     if minutes_to_open is not None:
-        items.append(f"- 距常规开盘约 {minutes_to_open} 分钟。")
+        items.append(f"- Còn khoảng {minutes_to_open} phút đến giờ mở cửa phiên thường.")
     if minutes_to_close is not None:
-        items.append(f"- 距常规收盘约 {minutes_to_close} 分钟。")
+        items.append(f"- Còn khoảng {minutes_to_close} phút đến giờ đóng cửa phiên thường.")
     return items
 
 
@@ -135,27 +135,27 @@ def _metadata_lines_en(ctx: Dict[str, Any]) -> List[str]:
 
 def _phase_rule_zh(ctx: Dict[str, Any], phase: str) -> str:
     effective_date = _string_value(ctx.get("effective_daily_bar_date"))
-    date_hint = f"（{effective_date}）" if effective_date else ""
+    date_hint = f" ({effective_date})" if effective_date else ""
 
     if phase == "premarket":
         return (
-            f"当前尚未开盘，不得描述“今日走势已经发生”；只能基于上一完整交易日{date_hint}"
-            "和盘前信息生成开盘计划、观察价位与风险预案。"
+            f"Hiện chưa mở cửa, không được mô tả \"diễn biến hôm nay đã xảy ra\"; chỉ được dựa vào phiên giao dịch hoàn chỉnh gần nhất{date_hint} "
+            "và thông tin trước phiên để tạo kế hoạch mở cửa, vùng giá quan sát và phương án phòng ngừa rủi ro."
         )
     if phase in {"intraday", "lunch_break", "closing_auction"}:
-        base = "当前不是盘后复盘，应聚焦当前盘中状态、观察条件与下一次检查点。"
+        base = "Hiện không phải phục thị sau phiên, nên tập trung vào trạng thái trong phiên hiện tại, điều kiện quan sát và điểm kiểm tra tiếp theo."
         if ctx.get("is_partial_bar") is True:
-            base += " 今日最后一根日线可能尚未完成，不得当作完整日线复盘。"
+            base += " Cây nến ngày cuối cùng của hôm nay có thể chưa hoàn thành, không được coi là phục thị nến ngày hoàn chỉnh."
         if phase == "lunch_break":
-            base += " 午间休市期间应说明后续复盘仍需下午交易确认。"
+            base += " Trong giờ nghỉ trưa, cần nêu rõ việc phục thị sau đó vẫn cần phiên chiều xác nhận."
         if phase == "closing_auction":
-            base += " 临近收盘时应更偏向收盘前风险控制和是否隔夜持仓。"
+            base += " Khi gần đóng cửa nên thiên về kiểm soát rủi ro trước đóng cửa và quyết định có giữ qua đêm hay không."
         return base
     if phase == "postmarket":
-        return "常规交易时段已结束，可以保留完整交易日复盘语义。"
+        return "Phiên giao dịch thường đã kết thúc, có thể giữ ngữ nghĩa phục thị cho cả ngày giao dịch hoàn chỉnh."
     if phase == "non_trading":
-        return f"当前不是交易日或属于强制运行，只能基于上一完整交易日{date_hint}和已知事件分析，不得伪造今日盘中走势。"
-    return "当前市场阶段不可可靠推断，不要补全不存在的盘中或盘前事实，结论需保持保守。"
+        return f"Hiện không phải ngày giao dịch hoặc thuộc trường hợp chạy cưỡng bức, chỉ được dựa vào phiên giao dịch hoàn chỉnh gần nhất{date_hint} và các sự kiện đã biết để phân tích, không được bịa ra diễn biến trong phiên hôm nay."
+    return "Không thể suy luận đáng tin cậy giai đoạn thị trường hiện tại, không bổ sung các sự kiện trong phiên hoặc trước phiên không tồn tại, kết luận cần giữ thận trọng."
 
 
 def _phase_rule_en(ctx: Dict[str, Any], phase: str) -> str:
@@ -195,7 +195,7 @@ def _warning_text(value: Any, *, lang: str) -> str:
         return ""
     if lang == "en":
         return ", ".join(rendered)
-    return "、".join(rendered)
+    return ", ".join(rendered)
 
 
 def _string_value(value: Any) -> str:

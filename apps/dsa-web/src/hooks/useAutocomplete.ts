@@ -16,6 +16,12 @@ export interface UseAutocompleteOptions {
   debounceMs?: number;
   /** Limit on number of results to return */
   limit?: number;
+  /**
+   * Optional live/remote searcher. When provided, queries hit this async
+   * function (e.g. OpenStock for the Vietnamese market) instead of the local
+   * in-memory index. On failure it falls back to the local index search.
+   */
+  remoteSearch?: (query: string) => Promise<StockSuggestion[]>;
 }
 
 export interface UseAutocompleteResult {
@@ -66,7 +72,11 @@ export function useAutocomplete(
     minLength = SEARCH_CONFIG.MIN_QUERY_LENGTH,
     debounceMs = SEARCH_CONFIG.DEBOUNCE_MS,
     limit = SEARCH_CONFIG.DEFAULT_LIMIT,
+    remoteSearch,
   } = options;
+
+  // Guards against out-of-order async results from remoteSearch.
+  const requestIdRef = useRef(0);
 
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
@@ -86,17 +96,45 @@ export function useAutocomplete(
     }
 
     if (q.length < minLength) {
+      requestIdRef.current += 1; // invalidate any in-flight remote search
       setSuggestions([]);
       setIsOpen(false);
       setHighlightedIndex(-1);
       return;
     }
 
-    try {
-      const results = searchStocks(q, index, { limit });
+    const applyResults = (results: StockSuggestion[]) => {
       setSuggestions(results);
       setIsOpen(results.length > 0);
       setHighlightedIndex(-1);
+    };
+
+    const localSearch = (): StockSuggestion[] => searchStocks(q, index, { limit });
+
+    // Remote/live search (e.g. OpenStock VN market) with race protection.
+    if (remoteSearch) {
+      const reqId = ++requestIdRef.current;
+      remoteSearch(q)
+        .then((results) => {
+          if (reqId !== requestIdRef.current) return; // a newer query superseded this
+          applyResults(results);
+        })
+        .catch((caught) => {
+          if (reqId !== requestIdRef.current) return;
+          console.warn('Remote stock search failed, falling back to local index.', caught);
+          try {
+            applyResults(localSearch());
+          } catch {
+            setSuggestions([]);
+            setIsOpen(false);
+            setHighlightedIndex(-1);
+          }
+        });
+      return;
+    }
+
+    try {
+      applyResults(localSearch());
     } catch (caught) {
       const runtimeError = caught instanceof Error ? caught : new Error('Autocomplete search failed');
       console.error('Autocomplete search failed. Falling back to plain input.', runtimeError);
@@ -106,7 +144,7 @@ export function useAutocomplete(
       setIsOpen(false);
       setHighlightedIndex(-1);
     }
-  }, [index, minLength, limit, runtimeFallback]);
+  }, [index, minLength, limit, runtimeFallback, remoteSearch]);
 
   // Input handling (with debounce)
   const handleInputChange = useCallback((value: string) => {

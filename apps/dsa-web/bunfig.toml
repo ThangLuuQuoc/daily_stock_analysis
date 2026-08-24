@@ -1,0 +1,2 @@
+[install]
+cafile = "C:/Program Files/Git/mingw64/ssl/certs/ca-bundle.crt"

@@ -3,7 +3,7 @@ import type { UiLanguage } from '../i18n/uiText';
 export const UI_LANGUAGE_STORAGE_KEY = 'dsa.uiLanguage';
 
 export function normalizeUiLanguage(value?: string | null): UiLanguage | null {
-  if (value === 'zh' || value === 'en') {
+  if (value === 'zh' || value === 'en' || value === 'vi') {
     return value;
   }
   return null;
@@ -51,17 +51,18 @@ function getBrowserUiLanguage(navigatorLike?: Pick<Navigator, 'language' | 'lang
     navigatorLike?.language,
   ].filter((language): language is string => Boolean(language));
 
+  // Đã bỏ tiếng Trung: chỉ nhận diện vi/en, mặc định Tiếng Việt.
   for (const candidate of languageCandidates) {
     const normalized = candidate.toLowerCase();
-    if (normalized.startsWith('zh')) {
-      return 'zh';
+    if (normalized.startsWith('vi')) {
+      return 'vi';
     }
     if (normalized.startsWith('en')) {
       return 'en';
     }
   }
 
-  return 'zh';
+  return 'vi';
 }
 
 export function resolveInitialUiLanguage({
@@ -72,7 +73,8 @@ export function resolveInitialUiLanguage({
   navigatorLike?: Pick<Navigator, 'language' | 'languages'> | null;
 } = {}): UiLanguage {
   const stored = getStoredUiLanguage(storage);
-  if (stored) {
+  // Bỏ qua giá trị 'zh' đã lưu từ trước (tiếng Trung đã bị loại khỏi UI).
+  if (stored && stored !== 'zh') {
     return stored;
   }
 
@@ -81,7 +83,7 @@ export function resolveInitialUiLanguage({
 
 export function getRuntimeInitialLanguage(): UiLanguage {
   if (typeof window === 'undefined') {
-    return 'zh';
+    return 'vi';
   }
 
   return resolveInitialUiLanguage({

@@ -23,6 +23,10 @@ const NEWS_SOURCE_TEXT = {
     sourceLabel: 'Related news / follow-up retrieval',
     sourceHint: 'Source: supplemental report-page news; analysis input is shown in Input Blocks.',
   },
+  vi: {
+    sourceLabel: 'Tin liên quan / truy xuất bổ sung',
+    sourceHint: 'Nguồn: tin bổ sung trên trang báo cáo; việc có dùng cho phân tích hay không xem ở Khối dữ liệu đầu vào.',
+  },
 } as const;
 
 /**

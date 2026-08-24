@@ -37,10 +37,10 @@ _INTRADAY_BUCKET_PHASES = {"intraday", "lunch_break", "closing_auction"}
 _SUPPORTED_MANUAL_ANALYSIS_PHASES = {"premarket", "intraday", "postmarket"}
 _SUPPORTED_ANALYSIS_INTENTS = {"auto", *_SUPPORTED_MANUAL_ANALYSIS_PHASES}
 _PUBLIC_SOURCE_LABELS_ZH = {
-    "alert_trigger_market_context": "告警触发上下文",
-    "analysis_history_snapshot": "最近分析快照",
-    "evaluator_snapshot": "评估器快照",
-    "legacy_text": "历史文本",
+    "alert_trigger_market_context": "bối cảnh kích hoạt cảnh báo",
+    "analysis_history_snapshot": "ảnh chụp phân tích gần nhất",
+    "evaluator_snapshot": "ảnh chụp bộ đánh giá",
+    "legacy_text": "văn bản cũ",
 }
 _PUBLIC_SOURCE_LABELS_EN = {
     "alert_trigger_market_context": "alert trigger context",
@@ -49,13 +49,13 @@ _PUBLIC_SOURCE_LABELS_EN = {
     "legacy_text": "legacy text",
 }
 _MARKET_STATUS_PREFIX = {
-    "zh": "市场状态",
+    "zh": "Trạng thái thị trường",
     "en": "Market status",
 }
 _MARKET_LABELS_ZH = {
-    "cn": "A股",
-    "hk": "港股",
-    "us": "美股",
+    "cn": "A-share",
+    "hk": "Hồng Kông",
+    "us": "Mỹ",
 }
 _MARKET_LABELS_EN = {
     "cn": "A-shares",
@@ -63,13 +63,13 @@ _MARKET_LABELS_EN = {
     "us": "US",
 }
 _PHASE_LABELS_ZH = {
-    "premarket": "盘前",
-    "intraday": "盘中",
-    "lunch_break": "午间休市",
-    "closing_auction": "临近收盘",
-    "postmarket": "盘后",
-    "non_trading": "非交易日",
-    "unknown": "阶段未知",
+    "premarket": "trước phiên",
+    "intraday": "trong phiên",
+    "lunch_break": "nghỉ trưa",
+    "closing_auction": "gần đóng cửa",
+    "postmarket": "sau phiên",
+    "non_trading": "ngày không giao dịch",
+    "unknown": "giai đoạn chưa rõ",
 }
 _PHASE_LABELS_EN = {
     "premarket": "Pre-market",
@@ -208,25 +208,25 @@ def format_public_phase_pack_excerpt(
             if phase_summary.get("is_partial_bar") is True:
                 lines.append("- partial-bar warning: intraday data may be incomplete")
         else:
-            parts = [f"阶段：{phase}"]
+            parts = [f"Giai đoạn: {phase}"]
             if market:
-                parts.append(f"市场：{market}")
+                parts.append(f"Thị trường: {market}")
             if trigger_source:
-                parts.append(f"触发来源：{trigger_source}")
+                parts.append(f"Nguồn kích hoạt: {trigger_source}")
             if source_label:
-                parts.append(f"摘要来源：{source_label}")
+                parts.append(f"Nguồn tóm tắt: {source_label}")
             lines.append("- " + " | ".join(parts))
             if phase_summary.get("is_partial_bar") is True:
-                lines.append("- 盘中数据提示：当前 K 线可能未完结")
+                lines.append("- Lưu ý dữ liệu trong phiên: cây nến hiện tại có thể chưa hoàn tất")
 
     quality = overview.get("data_quality") if isinstance(overview, Mapping) else None
     if isinstance(quality, Mapping):
         level = _safe_text(quality.get("level"))
         if level:
-            lines.append(f"- {'data quality' if lang == 'en' else '数据质量'}: {level}")
+            lines.append(f"- {'data quality' if lang == 'en' else 'chất lượng dữ liệu'}: {level}")
         limitations = _list_strings(quality.get("limitations"), limit=2)
         for item in limitations:
-            lines.append(f"- {'limitation' if lang == 'en' else '限制'}: {item}")
+            lines.append(f"- {'limitation' if lang == 'en' else 'hạn chế'}: {item}")
 
     return "\n".join(lines)
 

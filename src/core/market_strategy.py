@@ -47,40 +47,40 @@ class MarketStrategyBlueprint:
     def to_markdown_block(self) -> str:
         """Render blueprint as markdown section for template fallback report."""
         dims = "\n".join([f"- **{dim.name}**: {dim.objective}" for dim in self.dimensions])
-        section_title = "### VI. Strategy Framework" if self.region == "us" else "### 六、策略框架"
+        section_title = "### VI. Strategy Framework" if self.region == "us" else "### VI. Khung chiến lược"
         return f"{section_title}\n{dims}\n"
 
 
 CN_BLUEPRINT = MarketStrategyBlueprint(
     region="cn",
-    title="A股市场三段式复盘策略",
-    positioning="聚焦指数趋势、资金博弈与板块轮动，形成次日交易计划。",
+    title="Chiến lược phục thị ba bước thị trường A-share",
+    positioning="Tập trung vào xu hướng chỉ số, dòng tiền và luân chuyển nhóm ngành để xây dựng kế hoạch giao dịch cho phiên tới.",
     principles=[
-        "先看指数方向，再看量能结构，最后看板块持续性。",
-        "结论必须映射到仓位、节奏与风险控制动作。",
-        "判断使用当日数据与近3日新闻，不臆测未验证信息。",
+        "Trước tiên xem hướng đi của chỉ số, rồi đến cấu trúc khối lượng, cuối cùng là tính bền vững của nhóm ngành.",
+        "Kết luận bắt buộc phải chuyển thành hành động về tỷ trọng, nhịp giao dịch và kiểm soát rủi ro.",
+        "Chỉ phán đoán dựa trên dữ liệu trong ngày và tin tức 3 ngày gần nhất, không suy diễn thông tin chưa được kiểm chứng.",
     ],
     dimensions=[
         StrategyDimension(
-            name="趋势结构",
-            objective="判断市场处于上升、震荡还是防守阶段。",
-            checkpoints=["上证/深证/创业板是否同向", "放量上涨或缩量下跌是否成立", "关键支撑阻力是否被突破"],
+            name="Cấu trúc xu hướng",
+            objective="Xác định thị trường đang ở giai đoạn tăng, đi ngang hay phòng thủ.",
+            checkpoints=["Các chỉ số chính có đồng pha không", "Tăng kèm khối lượng lớn hay giảm kèm khối lượng thấp có thành lập không", "Các vùng hỗ trợ/kháng cự then chốt có bị phá vỡ không"],
         ),
         StrategyDimension(
-            name="资金情绪",
-            objective="识别短线风险偏好与情绪温度。",
-            checkpoints=["涨跌家数与涨跌停结构", "成交额是否扩张", "高位股是否出现分歧"],
+            name="Dòng tiền và tâm lý",
+            objective="Nhận diện khẩu vị rủi ro ngắn hạn và nhiệt độ tâm lý.",
+            checkpoints=["Số mã tăng/giảm và cấu trúc trần/sàn", "Giá trị giao dịch có mở rộng không", "Cổ phiếu vùng giá cao có xuất hiện phân kỳ không"],
         ),
         StrategyDimension(
-            name="主线板块",
-            objective="提炼可交易主线与规避方向。",
-            checkpoints=["领涨板块是否具备事件催化", "板块内部是否有龙头带动", "领跌板块是否扩散"],
+            name="Nhóm ngành chủ đạo",
+            objective="Chắt lọc chủ đề có thể giao dịch và hướng cần tránh.",
+            checkpoints=["Nhóm ngành dẫn dắt có xúc tác sự kiện không", "Trong nhóm ngành có cổ phiếu đầu tàu dẫn dắt không", "Nhóm ngành giảm mạnh có lan rộng không"],
         ),
     ],
     action_framework=[
-        "进攻：指数共振上行 + 成交额放大 + 主线强化。",
-        "均衡：指数分化或缩量震荡，控制仓位并等待确认。",
-        "防守：指数转弱 + 领跌扩散，优先风控与减仓。",
+        "Tấn công: chỉ số cùng đi lên + giá trị giao dịch mở rộng + chủ đề chủ đạo được củng cố.",
+        "Cân bằng: chỉ số phân hóa hoặc đi ngang thanh khoản thấp, kiểm soát tỷ trọng và chờ xác nhận.",
+        "Phòng thủ: chỉ số chuyển yếu + nhóm ngành giảm mạnh lan rộng, ưu tiên kiểm soát rủi ro và giảm tỷ trọng.",
     ],
 )
 
@@ -131,34 +131,68 @@ US_BLUEPRINT = MarketStrategyBlueprint(
 
 HK_BLUEPRINT = MarketStrategyBlueprint(
     region="hk",
-    title="港股市场三段式复盘策略",
-    positioning="聚焦恒生指数趋势、南向资金博弈与板块轮动，形成次日交易计划。",
+    title="Chiến lược phục thị ba bước thị trường Hồng Kông",
+    positioning="Tập trung vào xu hướng chỉ số Hang Seng, dòng vốn Nam hướng và luân chuyển nhóm ngành để xây dựng kế hoạch giao dịch cho phiên tới.",
     principles=[
-        "先看恒指/恒科/国企指数方向，再看南向资金情绪，最后看板块持续性。",
-        "结论必须映射到仓位、节奏与风险控制动作。",
-        "判断使用当日数据与近3日新闻，不臆测未验证信息。",
+        "Trước tiên xem hướng đi của các chỉ số Hang Seng/Hang Seng Tech/HSCEI, rồi đến tâm lý dòng vốn Nam hướng, cuối cùng là tính bền vững của nhóm ngành.",
+        "Kết luận bắt buộc phải chuyển thành hành động về tỷ trọng, nhịp giao dịch và kiểm soát rủi ro.",
+        "Chỉ phán đoán dựa trên dữ liệu trong ngày và tin tức 3 ngày gần nhất, không suy diễn thông tin chưa được kiểm chứng.",
     ],
     dimensions=[
         StrategyDimension(
-            name="趋势结构",
-            objective="判断市场处于上升、震荡还是防守阶段。",
-            checkpoints=["恒指/恒科/国企指数是否同向", "放量上涨或缩量下跌是否成立", "关键支撑阻力是否被突破"],
+            name="Cấu trúc xu hướng",
+            objective="Xác định thị trường đang ở giai đoạn tăng, đi ngang hay phòng thủ.",
+            checkpoints=["Các chỉ số Hang Seng/Hang Seng Tech/HSCEI có đồng pha không", "Tăng kèm khối lượng lớn hay giảm kèm khối lượng thấp có thành lập không", "Các vùng hỗ trợ/kháng cự then chốt có bị phá vỡ không"],
         ),
         StrategyDimension(
-            name="资金情绪",
-            objective="识别南向资金风险偏好与情绪温度。",
-            checkpoints=["南向资金净流入方向与规模", "港元汇率与内地政策含义", "市场广度与龙头集中度"],
+            name="Dòng tiền và tâm lý",
+            objective="Nhận diện khẩu vị rủi ro của dòng vốn Nam hướng và nhiệt độ tâm lý.",
+            checkpoints=["Hướng và quy mô dòng vốn Nam hướng ròng", "Tỷ giá HKD và hàm ý chính sách Trung Quốc đại lục", "Độ rộng thị trường và mức độ tập trung vào cổ phiếu đầu tàu"],
         ),
         StrategyDimension(
-            name="主线板块",
-            objective="提炼可交易主线与规避方向。",
-            checkpoints=["科技/互联网平台趋势持续性", "金融/地产对政策转向的敏感度", "防御与成长因子轮动"],
+            name="Nhóm ngành chủ đạo",
+            objective="Chắt lọc chủ đề có thể giao dịch và hướng cần tránh.",
+            checkpoints=["Tính bền vững xu hướng của nhóm công nghệ/nền tảng internet", "Độ nhạy của nhóm tài chính/bất động sản với thay đổi chính sách", "Luân chuyển giữa nhóm phòng thủ và nhóm tăng trưởng"],
         ),
     ],
     action_framework=[
-        "进攻：恒指共振上行 + 南向资金持续流入 + 主线强化。",
-        "均衡：指数分化或缩量震荡，控制仓位并等待确认。",
-        "防守：指数转弱 + 波动率上升，优先风控与减仓。",
+        "Tấn công: chỉ số Hang Seng cùng đi lên + dòng vốn Nam hướng tiếp tục chảy vào + chủ đề chủ đạo được củng cố.",
+        "Cân bằng: chỉ số phân hóa hoặc đi ngang thanh khoản thấp, kiểm soát tỷ trọng và chờ xác nhận.",
+        "Phòng thủ: chỉ số chuyển yếu + độ biến động tăng, ưu tiên kiểm soát rủi ro và giảm tỷ trọng.",
+    ],
+)
+
+
+VN_BLUEPRINT = MarketStrategyBlueprint(
+    region="vn",
+    title="Chiến lược phục thị ba bước thị trường Việt Nam",
+    positioning="Tập trung vào xu hướng VN-Index, dòng tiền (gồm khối ngoại) và luân chuyển nhóm ngành để xây dựng kế hoạch giao dịch cho phiên tới.",
+    principles=[
+        "Trước tiên xem hướng đi của VN-Index, rồi đến cấu trúc khối lượng, cuối cùng là tính bền vững của nhóm ngành.",
+        "Kết luận bắt buộc phải chuyển thành hành động về tỷ trọng, nhịp giao dịch và kiểm soát rủi ro.",
+        "Chỉ phán đoán dựa trên dữ liệu trong ngày và tin tức 3 ngày gần nhất, không suy diễn thông tin chưa được kiểm chứng.",
+    ],
+    dimensions=[
+        StrategyDimension(
+            name="Cấu trúc xu hướng",
+            objective="Xác định thị trường đang ở giai đoạn tăng, đi ngang hay phòng thủ.",
+            checkpoints=["VN-Index ở trên hay dưới MA20/MA50", "Tăng kèm khối lượng lớn hay giảm kèm khối lượng thấp có thành lập không", "Các vùng hỗ trợ/kháng cự then chốt có bị phá vỡ không"],
+        ),
+        StrategyDimension(
+            name="Dòng tiền và tâm lý",
+            objective="Nhận diện khẩu vị rủi ro ngắn hạn và nhiệt độ tâm lý.",
+            checkpoints=["Số mã tăng/giảm và độ rộng thị trường", "Giá trị giao dịch có mở rộng không", "Khối ngoại mua/bán ròng nghiêng về phía nào"],
+        ),
+        StrategyDimension(
+            name="Nhóm ngành chủ đạo",
+            objective="Chắt lọc chủ đề có thể giao dịch và hướng cần tránh.",
+            checkpoints=["Nhóm ngành dẫn dắt có xúc tác sự kiện không", "Trong nhóm ngành có cổ phiếu đầu tàu dẫn dắt không", "Nhóm ngành giảm mạnh có lan rộng không"],
+        ),
+    ],
+    action_framework=[
+        "Tấn công: VN-Index đi lên + giá trị giao dịch mở rộng + chủ đề chủ đạo được củng cố.",
+        "Cân bằng: chỉ số phân hóa hoặc đi ngang thanh khoản thấp, kiểm soát tỷ trọng và chờ xác nhận.",
+        "Phòng thủ: chỉ số chuyển yếu + nhóm ngành giảm mạnh lan rộng, ưu tiên kiểm soát rủi ro và giảm tỷ trọng.",
     ],
 )
 
@@ -169,4 +203,6 @@ def get_market_strategy_blueprint(region: str) -> MarketStrategyBlueprint:
         return US_BLUEPRINT
     if region == "hk":
         return HK_BLUEPRINT
+    if region == "vn":
+        return VN_BLUEPRINT
     return CN_BLUEPRINT

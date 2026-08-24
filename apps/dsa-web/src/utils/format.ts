@@ -1,9 +1,19 @@
-export const formatDateTime = (value?: string | null): string => {
+import type { UiLanguage } from '../i18n/uiText';
+
+const DATE_LOCALES: Record<UiLanguage, string> = {
+  zh: 'zh-CN',
+  en: 'en-US',
+  vi: 'vi-VN',
+};
+
+const resolveDateLocale = (language: UiLanguage = 'vi'): string => DATE_LOCALES[language] ?? 'vi-VN';
+
+export const formatDateTime = (value?: string | null, language: UiLanguage = 'vi'): string => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(resolveDateLocale(language), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -12,12 +22,12 @@ export const formatDateTime = (value?: string | null): string => {
   }).format(date);
 };
 
-export const formatDate = (value?: string): string => {
+export const formatDate = (value?: string, language: UiLanguage = 'vi'): string => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(resolveDateLocale(language), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -50,12 +60,17 @@ export const getRecentStartDate = (days: number): string => {
 export const getTodayInShanghai = (): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
-export const formatReportType = (value?: string): string => {
+const REPORT_TYPE_LABELS: Record<string, Record<UiLanguage, string>> = {
+  simple: { zh: '普通', en: 'Basic', vi: 'Thường' },
+  detailed: { zh: '标准', en: 'Standard', vi: 'Chuẩn' },
+  full: { zh: '完整', en: 'Full', vi: 'Đầy đủ' },
+  brief: { zh: '简版', en: 'Brief', vi: 'Rút gọn' },
+  market_review: { zh: '大盘', en: 'Market', vi: 'Toàn thị trường' },
+};
+
+export const formatReportType = (value?: string, language: UiLanguage = 'vi'): string => {
   if (!value) return '—';
-  if (value === 'simple') return '普通';
-  if (value === 'detailed') return '标准';
-  if (value === 'full') return '完整';
-  if (value === 'brief') return '简版';
-  if (value === 'market_review') return '大盘';
+  const labels = REPORT_TYPE_LABELS[value];
+  if (labels) return labels[language];
   return value;
 };

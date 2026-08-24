@@ -11,6 +11,8 @@ import type { ErrorInfo, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useStockIndex } from '../../hooks/useStockIndex';
 import { useAutocomplete } from '../../hooks/useAutocomplete';
+import { searchStocksRemote } from '../../api/stocks';
+import { useUiLanguage } from '../../contexts/UiLanguageContext';
 import { SuggestionsList } from './SuggestionsList';
 import { cn } from '../../utils/cn';
 
@@ -37,9 +39,11 @@ function FallbackInput({
   onChange,
   onSubmit,
   disabled = false,
-  placeholder = '输入股票代码或名称',
+  placeholder,
   className,
 }: StockAutocompleteProps) {
+  const { t } = useUiLanguage();
+  const effectivePlaceholder = placeholder ?? t('home.placeholder');
   return (
     <input
       type="text"
@@ -50,7 +54,7 @@ function FallbackInput({
           onSubmit(value);
         }
       }}
-      placeholder={placeholder}
+      placeholder={effectivePlaceholder}
       disabled={disabled}
       className={cn(AUTOCOMPLETE_INPUT_CLASS, className)}
       data-autocomplete-mode="fallback"
@@ -96,9 +100,11 @@ function StockAutocompleteInner({
   onChange,
   onSubmit,
   disabled = false,
-  placeholder = '输入股票代码或名称',
+  placeholder,
   className,
 }: StockAutocompleteProps) {
+  const { t } = useUiLanguage();
+  const effectivePlaceholder = placeholder ?? t('home.placeholder');
   const { index, loading, fallback } = useStockIndex();
   const {
     // query,
@@ -115,7 +121,7 @@ function StockAutocompleteInner({
     setIsComposing,
     runtimeFallback,
     error: autocompleteError,
-  } = useAutocomplete(index);
+  } = useAutocomplete(index, { remoteSearch: searchStocksRemote });
 
   const inputRef = useRef<HTMLInputElement>(null);
   const prevValueRef = useRef(value);
@@ -229,7 +235,7 @@ function StockAutocompleteInner({
         onChange={onChange}
         onSubmit={onSubmit}
         disabled={disabled}
-        placeholder={placeholder}
+        placeholder={effectivePlaceholder}
         className={className}
       />
     );
@@ -251,7 +257,7 @@ function StockAutocompleteInner({
           }
         }}
         onBlur={handleBlur}
-        placeholder={placeholder}
+        placeholder={effectivePlaceholder}
         disabled={disabled}
         className={cn(
           AUTOCOMPLETE_INPUT_CLASS,

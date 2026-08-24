@@ -61,7 +61,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={
                     "error": "internal_error",
-                    "message": "服务器内部错误，请稍后重试",
+                    "message": "Internal server error, please try again later",
                     "detail": str(e) if logger.isEnabledFor(logging.DEBUG) else None
                 }
             )
@@ -105,7 +105,7 @@ def add_error_handlers(app) -> None:
             status_code=422,
             content={
                 "error": "validation_error",
-                "message": "请求参数验证失败",
+                "message": "Request validation failed",
                 "detail": exc.errors()
             }
         )
@@ -122,7 +122,7 @@ def add_error_handlers(app) -> None:
             status_code=500,
             content={
                 "error": "internal_error",
-                "message": "服务器内部错误",
+                "message": "Internal server error",
                 "detail": None
             }
         )

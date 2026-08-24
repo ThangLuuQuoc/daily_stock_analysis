@@ -22,6 +22,16 @@ const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>>
     backtest: 'Backtest',
     uncategorized: 'Other',
   },
+  vi: {
+    base: 'Cài đặt cơ bản',
+    data_source: 'Nguồn dữ liệu',
+    ai_model: 'Mô hình AI',
+    notification: 'Thông báo',
+    system: 'Hệ thống',
+    agent: 'Agent',
+    backtest: 'Kiểm thử lịch sử',
+    uncategorized: 'Khác',
+  },
 };
 
 const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCategory, string>>> = {
@@ -44,6 +54,16 @@ const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCate
     agent: 'Manage Agent mode, strategies, and multi-agent orchestration.',
     backtest: 'Manage backtest switches, evaluation windows, and engine parameters.',
     uncategorized: 'Other uncategorized settings.',
+  },
+  vi: {
+    base: 'Quản lý danh mục theo dõi và các tham số vận hành cơ bản.',
+    data_source: 'Quản lý nguồn dữ liệu thị trường và chiến lược ưu tiên.',
+    ai_model: 'Quản lý dịch vụ mô hình, tên mô hình và tham số suy luận.',
+    notification: 'Quản lý bot, webhook và việc gửi thông báo.',
+    system: 'Quản lý lịch chạy, nhật ký, cổng và các tham số hệ thống.',
+    agent: 'Quản lý chế độ Agent, chiến lược và điều phối đa Agent.',
+    backtest: 'Quản lý công tắc kiểm thử, cửa sổ đánh giá và tham số engine.',
+    uncategorized: 'Các cấu hình khác chưa phân loại.',
   },
 };
 

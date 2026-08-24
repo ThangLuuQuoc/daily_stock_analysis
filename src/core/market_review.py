@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 MARKET_REVIEW_HISTORY_CODE = "MARKET"
 MARKET_REVIEW_REPORT_TYPE = "market_review"
 _MARKET_REVIEW_MARKETS = (
+    ('vn', 'vn_title', 'VN'),
     ('cn', 'cn_title', 'A 股'),
     ('hk', 'hk_title', '港股'),
     ('us', 'us_title', '美股'),
@@ -97,14 +98,26 @@ def _get_market_review_text(language: str) -> dict[str, str]:
         return {
             "root_title": "# 🎯 Market Review",
             "push_title": "🎯 Market Review",
+            "vn_title": "# Vietnam Market Recap",
             "cn_title": "# A-share Market Recap",
             "us_title": "# US Market Recap",
             "hk_title": "# HK Market Recap",
             "separator": "> Next market recap follows",
         }
+    if normalized == "vi":
+        return {
+            "root_title": "# 🎯 Phân tích thị trường",
+            "push_title": "🎯 Phân tích thị trường",
+            "vn_title": "# Phân tích thị trường Việt Nam",
+            "cn_title": "# Phân tích thị trường Trung Quốc (A-share)",
+            "us_title": "# Phân tích thị trường Mỹ",
+            "hk_title": "# Phân tích thị trường Hồng Kông",
+            "separator": "> Tiếp theo là phân tích thị trường kế tiếp",
+        }
     return {
         "root_title": "# 🎯 大盘复盘",
         "push_title": "🎯 大盘复盘",
+        "vn_title": "# 越南大盘复盘",
         "cn_title": "# A股大盘复盘",
         "us_title": "# 美股大盘复盘",
         "hk_title": "# 港股大盘复盘",
@@ -525,6 +538,10 @@ def _persist_market_review_history(
             stock_name = "Market Review"
             operation_advice = "View review"
             trend_prediction = "Market review"
+        elif report_language == "vi":
+            stock_name = "Phân tích thị trường"
+            operation_advice = "Xem phân tích"
+            trend_prediction = "Phân tích thị trường"
         else:
             stock_name = "大盘复盘"
             operation_advice = "查看复盘"
@@ -628,7 +645,7 @@ def _build_market_review_context_overview(
         metadata["trigger_source"] = diagnostic_snapshot.get("trigger_source") or metadata["trigger_source"]
         metadata["scope"] = diagnostic_snapshot.get("scope") or metadata["scope"]
 
-    label = "Market review" if report_language == "en" else "大盘复盘"
+    label = "Market review" if report_language == "en" else ("Phân tích thị trường" if report_language == "vi" else "大盘复盘")
     return {
         "pack_version": "market_review/1.0",
         "created_at": datetime.now().isoformat(),
@@ -665,4 +682,4 @@ def _summarize_market_review(review_report: str, report_language: str) -> str:
         text = line.strip().lstrip("#").strip()
         if text and not text.startswith("---") and not text.startswith(">"):
             return text[:200]
-    return "Market review report generated." if report_language == "en" else "大盘复盘报告已生成。"
+    return "Market review report generated." if report_language == "en" else ("Đã tạo báo cáo phân tích thị trường." if report_language == "vi" else "大盘复盘报告已生成。")

@@ -52,3 +52,26 @@ export const stocksApi = {
     throw new Error('请提供文件或粘贴文本');
   },
 };
+
+import type { StockSuggestion } from '../types/stockIndex';
+
+/**
+ * Live stock search via backend (OpenStock for the Vietnamese market).
+ * Returns suggestions shaped for the autocomplete dropdown.
+ */
+export async function searchStocksRemote(q: string): Promise<StockSuggestion[]> {
+  const query = q.trim();
+  if (!query) return [];
+  const response = await apiClient.get('/api/v1/stocks/search', { params: { q: query } });
+  const data = response.data as { result?: Array<Record<string, unknown>> };
+  const rows = Array.isArray(data.result) ? data.result : [];
+  return rows.map((row) => ({
+    canonicalCode: String(row.canonicalCode ?? ''),
+    displayCode: String(row.displayCode ?? row.canonicalCode ?? ''),
+    nameZh: String(row.nameZh ?? ''),
+    market: (row.market as StockSuggestion['market']) ?? 'CN',
+    matchType: (row.matchType as StockSuggestion['matchType']) ?? 'contains',
+    matchField: (row.matchField as StockSuggestion['matchField']) ?? 'name',
+    score: typeof row.score === 'number' ? row.score : 0,
+  }));
+}

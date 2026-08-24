@@ -52,6 +52,14 @@ const BLOCK_LABELS: Record<ReportLanguage, Record<string, string>> = {
     fundamentals: 'fundamentals',
     chip: 'chip',
   },
+  vi: {
+    quote: 'giá',
+    daily_bars: 'nến ngày',
+    technical: 'kỹ thuật',
+    news: 'tin tức',
+    fundamentals: 'cơ bản',
+    chip: 'phân bố cổ phiếu',
+  },
 };
 
 const TEXT = {
@@ -115,6 +123,36 @@ const TEXT = {
       fetch_failed: 'Fetch failed',
     },
   },
+  vi: {
+    eyebrow: 'NGỮ CẢNH DỮ LIỆU',
+    title: 'Khối dữ liệu đầu vào',
+    counts: 'Thống kê trạng thái',
+    source: 'Nguồn',
+    warnings: 'Cảnh báo',
+    missingReasons: 'Lý do thiếu',
+    inputScope: 'Dữ liệu đầu vào phân tích',
+    evidenceScope: 'Chỉ thể hiện dữ liệu đưa vào LLM lần này, không đồng nghĩa nguồn dữ liệu chạy thành công',
+    qualityScore: 'Chất lượng',
+    limitations: 'Giới hạn dữ liệu',
+    newsResultCount: 'Số kết quả tin',
+    triggerSource: 'Nguồn kích hoạt',
+    qualityLevel: {
+      good: 'Tốt',
+      usable: 'Dùng được',
+      limited: 'Hạn chế',
+      poor: 'Kém',
+    },
+    status: {
+      available: 'Có sẵn',
+      missing: 'Thiếu',
+      not_supported: 'Không hỗ trợ',
+      fallback: 'Dự phòng',
+      stale: 'Lỗi thời',
+      estimated: 'Ước tính',
+      partial: 'Một phần',
+      fetch_failed: 'Lấy dữ liệu thất bại',
+    },
+  },
 } as const;
 
 const MISSING_REASON_LABELS: Record<ReportLanguage, Record<string, string>> = {
@@ -137,6 +175,16 @@ const MISSING_REASON_LABELS: Record<ReportLanguage, Record<string, string>> = {
     chip_distribution_missing: 'Not included in analysis input',
     today_missing: 'Today data not included in analysis input',
     yesterday_missing: 'Yesterday data not included in analysis input',
+  },
+  vi: {
+    daily_bars_missing: 'Không đưa vào dữ liệu phân tích',
+    news_context_missing: 'Không đưa vào dữ liệu phân tích',
+    realtime_quote_missing: 'Không đưa vào dữ liệu phân tích',
+    trend_result_missing: 'Không đưa vào dữ liệu phân tích',
+    fundamental_context_missing: 'Không đưa vào dữ liệu phân tích',
+    chip_distribution_missing: 'Không đưa vào dữ liệu phân tích',
+    today_missing: 'Dữ liệu hôm nay không đưa vào dữ liệu phân tích',
+    yesterday_missing: 'Dữ liệu hôm qua không đưa vào dữ liệu phân tích',
   },
 };
 
@@ -167,7 +215,7 @@ const getCount = (
 const formatLimitation = (
   value: string,
   language: ReportLanguage,
-  text: typeof TEXT.zh | typeof TEXT.en,
+  text: typeof TEXT.zh | typeof TEXT.en | typeof TEXT.vi,
 ): string => {
   const [rawKey, ...statusParts] = value.split(':');
   if (!rawKey || statusParts.length === 0) {

@@ -5,6 +5,7 @@ import { getSentimentColor } from '../../types/analysis';
 import { buildDecisionActionLabelMap, getDecisionActionLabel } from '../../utils/decisionAction';
 import { formatDateTime } from '../../utils/format';
 import { getMarketPhaseSummaryLabel } from '../../utils/marketPhase';
+import { uiToReportLanguage } from '../../utils/reportLanguage';
 import { truncateStockName } from '../../utils/stockName';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 
@@ -36,7 +37,7 @@ export const HistoryListItem: React.FC<HistoryListItemProps> = ({
     t('history.sentiment'),
     actionLabels,
   );
-  const phaseLabel = getMarketPhaseSummaryLabel(item.marketPhaseSummary, language)
+  const phaseLabel = getMarketPhaseSummaryLabel(item.marketPhaseSummary, uiToReportLanguage(language))
     ?.replace('市场阶段: ', '')
     .replace('市场阶段：', '')
     .replace('Market phase: ', '');

@@ -87,3 +87,10 @@ static/
 /apps/dsa-desktop/dist/
 /apps/dsa-desktop/node_modules/
 docs/specs/
+
+# === Fork VN: bo sung (2026-08-24) ===
+/apps/dsa-web/node_modules/
+/backups/
+/plan/*.local.md
+# file tam cua script test market-review / vn adapter
+/scripts/_*.json

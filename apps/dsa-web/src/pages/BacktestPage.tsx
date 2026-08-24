@@ -24,6 +24,7 @@ import type {
 } from '../types/backtest';
 import { buildDecisionActionLabelMap, getDecisionActionLabel } from '../utils/decisionAction';
 import { getMarketPhaseSummaryLabel } from '../utils/marketPhase';
+import { uiToReportLanguage } from '../utils/reportLanguage';
 
 const BACKTEST_INPUT_CLASS =
   'input-surface input-focus-glow h-11 w-full rounded-xl border bg-transparent px-4 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
@@ -39,7 +40,7 @@ function pct(value?: number | null): string {
 }
 
 function phaseLabel(row: BacktestResultItem, language: UiLanguage): string {
-  const label = getMarketPhaseSummaryLabel(row.marketPhaseSummary, language);
+  const label = getMarketPhaseSummaryLabel(row.marketPhaseSummary, uiToReportLanguage(language));
   if (label) {
     return label
       .replace('市场阶段: ', '')

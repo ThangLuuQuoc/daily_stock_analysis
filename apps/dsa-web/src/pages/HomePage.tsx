@@ -20,7 +20,7 @@ import { useDashboardLifecycle, useHomeDashboardState } from '../hooks';
 import { useWatchlist } from '../hooks/useWatchlist';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import type { SetupStatusResponse } from '../types/systemConfig';
-import { normalizeReportLanguage } from '../utils/reportLanguage';
+import { normalizeReportLanguage, uiToReportLanguage } from '../utils/reportLanguage';
 import type { MarketReviewPayload, StockBarItem, TaskInfo } from '../types/analysis';
 import type { RunFlowSnapshotSource } from '../types/runFlow';
 
@@ -230,7 +230,11 @@ const HomePage: React.FC = () => {
     }
   }, [analysisSkills, selectedStrategyId]);
 
-  const reportLanguage = normalizeReportLanguage(selectedReport?.meta.reportLanguage);
+  // Nhãn báo cáo (chrome: 核心洞察/Key Insights, market phase...) bám theo ngôn ngữ UI,
+  // không theo ngôn ngữ báo cáo đã lưu — để đổi UI sang English/VN là nhãn đổi ngay.
+  // (Phần thân do LLM sinh vẫn giữ ngôn ngữ lúc tạo.)
+  const reportLanguage = uiToReportLanguage(uiLanguage);
+  // Market review parse thân theo Chinese header → giữ theo ngôn ngữ payload đã sinh.
   const liveMarketReviewLanguage = normalizeReportLanguage(marketReviewPayload?.language);
   const isMarketReviewHistoryReport = selectedReport?.meta.reportType === 'market_review';
   const isHistoryTrendUnavailable = !selectedReport || !selectedReport.meta.stockCode;
@@ -416,9 +420,10 @@ const HomePage: React.FC = () => {
         originalQuery: query,
         selectionSource: selectionSource ?? 'manual',
         skills: selectedAnalysisSkills,
+        reportLanguage: uiToReportLanguage(uiLanguage),
       });
     },
-    [query, selectedAnalysisSkills, submitAnalysis],
+    [query, selectedAnalysisSkills, submitAnalysis, uiLanguage],
   );
 
   useEffect(() => {
@@ -458,8 +463,9 @@ const HomePage: React.FC = () => {
       selectionSource: 'manual',
       forceRefresh: true,
       skills: selectedAnalysisSkills,
+      reportLanguage: uiToReportLanguage(uiLanguage),
     });
-  }, [selectedAnalysisSkills, selectedReport, submitAnalysis]);
+  }, [selectedAnalysisSkills, selectedReport, submitAnalysis, uiLanguage]);
 
   const openTaskRunFlow = useCallback((task: TaskInfo) => {
     const stock = task.stockName || task.stockCode || task.taskId;

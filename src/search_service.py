@@ -35,6 +35,7 @@ from tenacity import (
 from data_provider.us_index_mapping import is_us_index_code
 from src.config import (
     NEWS_STRATEGY_WINDOWS,
+    normalize_news_domain,
     normalize_news_strategy_profile,
     resolve_news_window_days,
 )
@@ -306,6 +307,7 @@ class TavilySearchProvider(BaseSearchProvider):
         max_results: int,
         days: int = 7,
         topic: Optional[str] = None,
+        include_domains: Optional[List[str]] = None,
     ) -> SearchResponse:
         """执行 Tavily 搜索"""
         try:
@@ -333,6 +335,8 @@ class TavilySearchProvider(BaseSearchProvider):
             }
             if topic is not None:
                 search_kwargs["topic"] = topic
+            if include_domains:
+                search_kwargs["include_domains"] = list(include_domains)
 
             response = client.search(
                 **search_kwargs,
@@ -380,9 +384,10 @@ class TavilySearchProvider(BaseSearchProvider):
         max_results: int = 5,
         days: int = 7,
         topic: Optional[str] = None,
+        include_domains: Optional[List[str]] = None,
     ) -> SearchResponse:
-        """执行 Tavily 搜索，可按调用方选择是否启用新闻 topic。"""
-        if topic is None:
+        """执行 Tavily 搜索，可按调用方选择是否启用新闻 topic / 域名限定。"""
+        if topic is None and not include_domains:
             return super().search(query, max_results=max_results, days=days)
 
         api_key = self._get_next_key()
@@ -397,7 +402,9 @@ class TavilySearchProvider(BaseSearchProvider):
 
         start_time = time.time()
         try:
-            response = self._do_search(query, api_key, max_results, days=days, topic=topic)
+            response = self._do_search(
+                query, api_key, max_results, days=days, topic=topic, include_domains=include_domains
+            )
             response.search_time = time.time() - start_time
 
             if response.success:
@@ -487,8 +494,36 @@ class SerpAPISearchProvider(BaseSearchProvider):
     
     def __init__(self, api_keys: List[str]):
         super().__init__(api_keys, "SerpAPI")
-    
-    def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
+
+    def search(
+        self,
+        query: str,
+        max_results: int = 5,
+        days: int = 7,
+        gl: Optional[str] = None,
+        hl: Optional[str] = None,
+        google_domain: Optional[str] = None,
+    ) -> SearchResponse:
+        """支持按调用方覆盖 Google locale（gl/hl/google_domain），用于越南市场等场景。"""
+        return self._execute_search(
+            query,
+            max_results=max_results,
+            days=days,
+            gl=gl,
+            hl=hl,
+            google_domain=google_domain,
+        )
+
+    def _do_search(
+        self,
+        query: str,
+        api_key: str,
+        max_results: int,
+        days: int = 7,
+        gl: Optional[str] = None,
+        hl: Optional[str] = None,
+        google_domain: Optional[str] = None,
+    ) -> SearchResponse:
         """执行 SerpAPI 搜索"""
         try:
             from serpapi import GoogleSearch
@@ -514,13 +549,14 @@ class SerpAPISearchProvider(BaseSearchProvider):
                 tbs = "qdr:y"  # 过去一年
 
             # 使用 Google 搜索 (获取 Knowledge Graph, Answer Box 等)
+            # locale 默认偏向中文市场，可由调用方覆盖（如越南市场 gl=vn/hl=vi）
             params = {
                 "engine": "google",
                 "q": query,
                 "api_key": api_key,
-                "google_domain": "google.com.hk", # 使用香港谷歌，中文支持较好
-                "hl": "zh-cn",  # 中文界面
-                "gl": "cn",     # 中国地区偏好
+                "google_domain": google_domain or "google.com.hk",
+                "hl": hl or "zh-cn",
+                "gl": gl or "cn",
                 "tbs": tbs,     # 时间范围限制
                 "num": max_results # 请求的结果数量，注意：Google API有时不严格遵守
             }
@@ -2266,6 +2302,8 @@ class SearchService:
         searxng_public_instances_enabled: bool = True,
         news_max_age_days: int = 3,
         news_strategy_profile: str = "short",
+        vn_news_enabled: bool = False,
+        vn_news_domains: Optional[List[str]] = None,
     ):
         """
         初始化搜索服务
@@ -2299,6 +2337,20 @@ class SearchService:
             self.news_strategy_profile,
             NEWS_STRATEGY_WINDOWS["short"],
         )
+
+        # 越南市场新闻模式：使用越南语查询，并把结果限定到越南财经站点（域名 allowlist 后置过滤）
+        self.vn_news_enabled = bool(vn_news_enabled)
+        self._vn_domains: List[str] = []
+        for d in (vn_news_domains or []):
+            host = normalize_news_domain(d)
+            if host and host not in self._vn_domains:
+                self._vn_domains.append(host)
+        if self.vn_news_enabled:
+            logger.info(
+                "已启用越南市场新闻模式（VN_NEWS_ENABLED），限定域名 %s 个: %s",
+                len(self._vn_domains),
+                ", ".join(self._vn_domains) or "(空)",
+            )
 
         # 初始化搜索引擎（按优先级排序）
         # 1. Bocha 优先（中文搜索优化，AI摘要）
@@ -3573,6 +3625,61 @@ class SearchService:
             record_count=record_count,
         )
 
+    def _vn_scope(self, query: str, provider: "BaseSearchProvider") -> Tuple[str, Dict[str, Any]]:
+        """越南新闻模式下的 provider 级提示。
+
+        Tavily 支持原生 include_domains（服务端限定域名），直接透传；其余引擎
+        不注入 site: 操作符（实测 Google 对 `(site:a OR site:b)` 直接返回空），
+        改由 `_restrict_response_to_vn` 在结果侧按 allowlist 过滤。query 原样返回。
+        """
+        if not self.vn_news_enabled or not self._vn_domains:
+            return query, {}
+        if isinstance(provider, TavilySearchProvider):
+            return query, {"include_domains": list(self._vn_domains)}
+        if isinstance(provider, SerpAPISearchProvider):
+            # 越南地区/越南语 locale，明显优于默认 cn locale
+            return query, {"gl": "vn", "hl": "vi", "google_domain": "google.com.vn"}
+        return query, {}
+
+    def _is_vn_domain(self, host: str) -> bool:
+        """True nếu là nguồn Việt Nam: domain `.vn` hoặc khớp allowlist (cho site VN dùng .net/.com).
+
+        VN news tươi trải trên nhiều báo `.vn` (vietstock/cafef/vov/danviet…), nên lấy `.vn`
+        làm nền + allowlist bổ sung các site VN không dùng .vn (vnexpress.net…); qua đó loại
+        youtube/tiktok/facebook/nguồn global một cách tự nhiên.
+        """
+        host = (host or "").strip().lower()
+        if host.startswith("www."):
+            host = host[4:]
+        if not host:
+            return False
+        if host == "vn" or host.endswith(".vn"):
+            return True
+        return any(host == d or host.endswith(f".{d}") for d in self._vn_domains)
+
+    def _restrict_response_to_vn(self, response: SearchResponse) -> SearchResponse:
+        """越南新闻模式：只保留属于越南域名 allowlist 的结果。
+
+        适用于所有不支持服务端域名限定的引擎。未开启或无域名则原样返回。
+        """
+        if not self.vn_news_enabled or not self._vn_domains or not response or not response.results:
+            return response
+        kept = []
+        for item in response.results:
+            host = self._candidate_hostname(item.url)
+            label = self._candidate_hostname(item.source) if self._source_resembles_hostname(item.source) else ""
+            if self._is_vn_domain(host) or (label and self._is_vn_domain(label)):
+                kept.append(item)
+        if len(kept) != len(response.results):
+            logger.info(
+                "[VN新闻] %s: 域名过滤 %s -> %s 条",
+                response.provider,
+                len(response.results),
+                len(kept),
+            )
+        response.results = kept
+        return response
+
     def search_stock_news(
         self,
         stock_code: str,
@@ -3601,12 +3708,19 @@ class SearchService:
             stock_name,
             focus_keywords=focus_keywords,
         )
+        # 越南新闻模式：越南语优先，越南代码不再当作美股处理
+        if self.vn_news_enabled:
+            prefer_chinese = False
 
         # 构建搜索查询（优化搜索效果）
-        is_foreign = self._is_foreign_stock(stock_code)
+        is_foreign = False if self.vn_news_enabled else self._is_foreign_stock(stock_code)
         if focus_keywords:
             # 如果提供了关键词，直接使用关键词作为查询
             query = " ".join(focus_keywords)
+        elif self.vn_news_enabled:
+            # 越南市场：越南语查询（精简关键词，避免 Google 对长查询+时间窗返回空）
+            vn_label = stock_name if (stock_name and stock_name != stock_code) else stock_code
+            query = f"{vn_label} cổ phiếu tin tức"
         elif prefer_chinese:
             query = f"{stock_name} {stock_code} 股票 最新消息"
         elif is_foreign:
@@ -3702,6 +3816,10 @@ class SearchService:
                         )
                     )
 
+                # 越南新闻模式：Tavily 用 include_domains，其余引擎在结果侧按 allowlist 过滤
+                provider_query, vn_extra = self._vn_scope(query, provider)
+                search_kwargs.update(vn_extra)
+
                 started_at = time.monotonic()
                 try:
                     record_provider_run_started(
@@ -3709,7 +3827,7 @@ class SearchService:
                         provider=provider.name,
                         operation="search_stock_news",
                     )
-                    response = provider.search(query, provider_max_results, days=search_days, **search_kwargs)
+                    response = provider.search(provider_query, provider_max_results, days=search_days, **search_kwargs)
                 except Exception as exc:
                     self._record_news_search_run(
                         provider=provider.name,
@@ -3720,11 +3838,15 @@ class SearchService:
                         error_message=exc,
                     )
                     raise
+                response = self._restrict_response_to_vn(response)
                 filtered_response = self._filter_news_response(
                     response,
                     search_days=search_days,
                     max_results=provider_max_results,
                     log_scope=f"{stock_code}:{provider.name}:stock_news",
+                    # VN/Google organic 常缺少发布日期；新鲜度已由 provider 的 tbs 时间窗近似，
+                    # 此处保留无日期项，避免越南语新闻被全部硬过滤掉。
+                    keep_unknown=self.vn_news_enabled,
                 )
                 had_provider_success = had_provider_success or bool(response.success)
 
@@ -3944,10 +4066,57 @@ class SearchService:
         results = {}
         search_count = 0
 
-        is_foreign = self._is_foreign_stock(stock_code)
+        is_foreign = False if self.vn_news_enabled else self._is_foreign_stock(stock_code)
         is_index_etf = self.is_index_or_etf(stock_code, stock_name)
 
-        if is_foreign:
+        if self.vn_news_enabled:
+            # 越南市场：越南语多维度查询（精简关键词，避免 Google 对长查询+时间窗返回空；域名限定在分发处过滤）
+            vn_label = stock_name if (stock_name and stock_name != stock_code) else stock_code
+            search_dimensions = [
+                {
+                    'name': 'latest_news',
+                    'query': f"{vn_label} cổ phiếu tin tức",
+                    'desc': '最新消息',
+                    'tavily_topic': 'news',
+                    'strict_freshness': True,
+                },
+                {
+                    'name': 'market_analysis',
+                    'query': f"{vn_label} cổ phiếu khuyến nghị định giá",
+                    'desc': '机构分析',
+                    'tavily_topic': None,
+                    'strict_freshness': False,
+                },
+                {
+                    'name': 'announcements',
+                    'query': f"{vn_label} công bố thông tin HOSE",
+                    'desc': '公司公告',
+                    'tavily_topic': 'news',
+                    'strict_freshness': True,
+                },
+                {
+                    'name': 'risk_check',
+                    'query': f"{vn_label} cổ phiếu rủi ro cảnh báo",
+                    'desc': '风险排查',
+                    'tavily_topic': 'news',
+                    'strict_freshness': True,
+                },
+                {
+                    'name': 'earnings',
+                    'query': f"{vn_label} kết quả kinh doanh lợi nhuận",
+                    'desc': '业绩预期',
+                    'tavily_topic': None,
+                    'strict_freshness': False,
+                },
+                {
+                    'name': 'industry',
+                    'query': f"{vn_label} ngành triển vọng",
+                    'desc': '行业分析',
+                    'tavily_topic': None,
+                    'strict_freshness': False,
+                },
+            ]
+        elif is_foreign:
             search_dimensions = [
                 {
                     'name': 'latest_news',
@@ -4098,25 +4267,33 @@ class SearchService:
                 request_days,
             )
 
+            # 越南新闻模式：限定到越南域名（Tavily 用 include_domains，其余追加 site: 子句）
+            dim_query, vn_extra = self._vn_scope(dim['query'], provider)
             if isinstance(provider, TavilySearchProvider) and dim.get('tavily_topic'):
                 response = provider.search(
-                    dim['query'],
+                    dim_query,
                     max_results=provider_max_results,
                     days=request_days,
                     topic=dim['tavily_topic'],
+                    **vn_extra,
                 )
             else:
                 response = provider.search(
-                    dim['query'],
+                    dim_query,
                     max_results=provider_max_results,
                     days=request_days,
+                    **vn_extra,
                 )
+            # 越南新闻模式：按 allowlist 过滤到越南域名
+            response = self._restrict_response_to_vn(response)
             if dim['strict_freshness']:
                 filtered_response = self._filter_news_response(
                     response,
                     search_days=search_days,
                     max_results=provider_max_results,
                     log_scope=f"{stock_code}:{provider.name}:{dim['name']}",
+                    # VN/Google organic 常缺日期，保留无日期项（新鲜度由 provider tbs 近似）
+                    keep_unknown=self.vn_news_enabled,
                 )
             elif dim['name'] in self.ANALYTICAL_INTEL_DIMENSIONS:
                 filtered_response = self._filter_news_response(
@@ -4135,7 +4312,10 @@ class SearchService:
                 filtered_response,
                 stock_code=stock_code,
                 stock_name=stock_name,
-                prefer_chinese=self._should_prefer_chinese_news(stock_code, stock_name),
+                prefer_chinese=(
+                    False if self.vn_news_enabled
+                    else self._should_prefer_chinese_news(stock_code, stock_name)
+                ),
                 max_results=provider_max_results,
                 log_scope=f"{stock_code}:{provider.name}:{dim['name']}:rank",
             )
@@ -4456,6 +4636,8 @@ def get_search_service() -> SearchService:
                     searxng_public_instances_enabled=config.searxng_public_instances_enabled,
                     news_max_age_days=config.news_max_age_days,
                     news_strategy_profile=getattr(config, "news_strategy_profile", "short"),
+                    vn_news_enabled=getattr(config, "vn_news_enabled", False),
+                    vn_news_domains=getattr(config, "vn_news_domains", None),
                 )
     
     return _search_service

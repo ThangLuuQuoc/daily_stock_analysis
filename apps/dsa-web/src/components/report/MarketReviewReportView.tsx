@@ -255,6 +255,25 @@ const MARKET_REVIEW_TEXT: Record<ReportLanguage, {
     change: 'Change',
     highLow: 'High/Low',
   },
+  vi: {
+    reviewSummary: 'Tóm tắt phiên',
+    noReviewSummary: 'Chưa có tóm tắt phiên',
+    noSentimentScore: 'Chưa có điểm số',
+    rotationAndFunds: 'Luân chuyển & Dòng tiền',
+    noRotationView: 'Chưa có nhận định luân chuyển',
+    riskAndWatch: 'Rủi ro & Theo dõi',
+    noRiskWatch: 'Chưa có điểm quan sát trọng yếu',
+    structuredMarketData: 'Dữ liệu thị trường có cấu trúc',
+    noBreadthData: 'Không có dữ liệu',
+    advancers: 'Số mã tăng',
+    decliners: 'Số mã giảm',
+    limitUpDown: 'Trần/Sàn',
+    turnover: 'Giá trị giao dịch',
+    index: 'Chỉ số',
+    last: 'Mới nhất',
+    change: 'Biến động',
+    highLow: 'Cao/Thấp',
+  },
 };
 
 export const MarketReviewReportView: React.FC<MarketReviewReportViewProps> = ({

@@ -1,4 +1,5 @@
 import type { DecisionAction } from '../types/analysis';
+import type { UiLanguage } from '../i18n/uiText';
 
 export type DecisionActionTone = 'success' | 'warning' | 'danger' | 'default';
 export type DecisionActionLabelMap = Record<DecisionAction, string>;
@@ -13,19 +14,50 @@ export type DecisionActionLabelTextKey =
   | 'history.actionAlert';
 export type DecisionActionLabelTranslator = (key: DecisionActionLabelTextKey) => string;
 
-export const DEFAULT_DECISION_ACTION_LABELS: DecisionActionLabelMap = {
-  buy: '买入',
-  add: '加仓',
-  hold: '持有',
-  reduce: '减仓',
-  sell: '卖出',
-  watch: '观望',
-  avoid: '回避',
-  alert: '预警',
+export const DECISION_ACTION_LABELS_BY_LANGUAGE: Record<UiLanguage, DecisionActionLabelMap> = {
+  zh: {
+    buy: '买入',
+    add: '加仓',
+    hold: '持有',
+    reduce: '减仓',
+    sell: '卖出',
+    watch: '观望',
+    avoid: '回避',
+    alert: '预警',
+  },
+  en: {
+    buy: 'Buy',
+    add: 'Add',
+    hold: 'Hold',
+    reduce: 'Reduce',
+    sell: 'Sell',
+    watch: 'Watch',
+    avoid: 'Avoid',
+    alert: 'Alert',
+  },
+  vi: {
+    buy: 'Mua',
+    add: 'Mua thêm',
+    hold: 'Nắm giữ',
+    reduce: 'Giảm tỷ trọng',
+    sell: 'Bán',
+    watch: 'Quan sát',
+    avoid: 'Tránh',
+    alert: 'Cảnh báo',
+  },
 };
 
-const resolveActionLabels = (labels?: Partial<DecisionActionLabelMap>): DecisionActionLabelMap => ({
-  ...DEFAULT_DECISION_ACTION_LABELS,
+export const DEFAULT_DECISION_ACTION_LABELS: DecisionActionLabelMap = DECISION_ACTION_LABELS_BY_LANGUAGE.zh;
+
+export const getDecisionActionLabelsForLanguage = (
+  language: UiLanguage = 'vi',
+): DecisionActionLabelMap => DECISION_ACTION_LABELS_BY_LANGUAGE[language];
+
+const resolveActionLabels = (
+  labels?: Partial<DecisionActionLabelMap>,
+  language: UiLanguage = 'zh',
+): DecisionActionLabelMap => ({
+  ...DECISION_ACTION_LABELS_BY_LANGUAGE[language],
   ...labels,
 });
 
@@ -85,10 +117,11 @@ const hasEnglishDeferredAction = (value: string): boolean => {
 export const getLegacyDecisionActionLabel = (
   advice?: string | null,
   labels?: Partial<DecisionActionLabelMap>,
+  language: UiLanguage = 'zh',
 ): string | null => {
   const action = getLegacyDecisionAction(advice);
   if (!action) return null;
-  return resolveActionLabels(labels)[action];
+  return resolveActionLabels(labels, language)[action];
 };
 
 export const getLegacyDecisionAction = (advice?: string | null): DecisionAction | null => {
@@ -223,12 +256,13 @@ export const getDecisionActionLabel = (
   legacyAdvice?: string | null,
   emptyLabel: string | null = '建议',
   labels?: Partial<DecisionActionLabelMap>,
+  language: UiLanguage = 'zh',
 ): string | null => {
-  const actionLabels = resolveActionLabels(labels);
+  const actionLabels = resolveActionLabels(labels, language);
   if (action) return actionLabels[action];
   const explicitLabel = actionLabel?.trim();
   if (explicitLabel) return explicitLabel;
-  return getLegacyDecisionActionLabel(legacyAdvice, actionLabels) || emptyLabel;
+  return getLegacyDecisionActionLabel(legacyAdvice, actionLabels, language) || emptyLabel;
 };
 
 export const getDecisionActionTone = (

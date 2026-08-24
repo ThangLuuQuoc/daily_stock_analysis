@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 修复 Web 回测运行未传分析日期范围、股票代码未归一化导致后端成功返回但结果为空的问题，并为空候选和行情不足返回诊断信息。
 - [文档] 补充回测请求链路说明：`analysis_date_from/analysis_date_to` 与 `code` 的输入边界、归一化与筛选顺序，以及历史行情不足或候选集为空时回测返回成功响应，在 `message` 与 `diagnostics`（含 `empty_reason`）中提供可诊断信息，并同步更新 `docs/full-guide.md`、`docs/full-guide_EN.md` 示例。
 - [修复] 回测代码匹配新增非法市场后缀/长度兜底：如 `600519.HK`、`600519.SZ`、`SH000001` 不再静默回落到其它有效代码，并在日期筛选重跑时对齐旧回测结果的分析日期，避免历史快照日期命中但结果列表仍为空。
+- [文档] 新增通过 freellmapi 本地 OpenAI-compatible 网关接入免费 LLM 的配置说明（`.env.example` 模板 + `docs/llm-providers.md`），LLM 侧仅走渠道配置，新闻检索数据源不变。
+- [文档] 新增 `docs/local-dev-startup.md`：本地全栈（OpenStock 数据源 / freellmapi LLM 网关 / 后端 / Web）启动顺序、端口、环境变量与排障，并在 AGENTS.md 常用命令处加指引。
+- [文档] 新增 OmniRoute 本地网关作为 freellmapi 的替代接入方案（`.env.example` + `docs/llm-providers.md` 对比说明），二者均为 OpenAI-compatible channel，二选一。
+- [新功能] 新增越南市场新闻模式（`VN_NEWS_ENABLED`/`VN_NEWS_DOMAINS`）：开启后股票新闻与多维度情报搜索改用越南语查询、越南地区 locale（SerpAPI gl=vn/hl=vi），结果按越南来源（.vn 域名 + allowlist）过滤，越南代码不再被误判为美股；默认关闭，行为不变。新闻检索仍走搜索引擎层，不经过 LLM 网关。
 
 ## [3.23.0] - 2026-06-20
 

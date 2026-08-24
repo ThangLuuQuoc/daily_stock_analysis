@@ -61,6 +61,76 @@ LLM_MY_PROXY_MODELS=gpt-5.5,claude-sonnet-4-6
 OpenAI-compatible Base URL 只填到服务商兼容入口，不额外拼接 `/chat/completions`。本地 `.env`、Docker 和自托管脚本可以直接使用自定义 channel；GitHub Actions 需要 workflow 显式透传同名 `LLM_MY_PROXY_*` 变量。
 小米 MiMo 示例同理：适用于本地 `.env`、Docker 或自托管脚本；若在 GitHub Actions 使用 `LLM_CHANNELS=mimo`，需要在 workflow 中手动补齐 `LLM_MIMO_*` 映射后方可生效。
 
+### freellmapi 本地网关（聚合免费 LLM）
+
+[freellmapi](https://github.com/tashfeenahmed/freellmapi) 是一个本地运行的 OpenAI-compatible 网关，把多家 free tier 聚合到统一 `/v1` 端点与单一 unified key 后面，并自带 auto-failover。它属于「OpenAI-compatible 自定义网关」的一个具体实例，因此通过普通 channel 配置即可接入，无需改动后端代码。
+
+部署（Docker Compose）：
+
+```bash
+git clone https://github.com/tashfeenahmed/freellmapi
+cd freellmapi
+printf "ENCRYPTION_KEY=%s\nPORT=3001\n" "$(openssl rand -hex 32)" > .env
+docker compose up -d
+# 打开 http://localhost:3001 → Keys 页填各家 free key → 复制 unified key（freellmapi-...）
+```
+
+接入本项目：
+
+```env
+LLM_CHANNELS=freellm
+LLM_FREELLM_PROTOCOL=openai
+LLM_FREELLM_BASE_URL=http://localhost:3001/v1
+LLM_FREELLM_API_KEY=freellmapi-xxx
+LLM_FREELLM_MODELS=auto
+LITELLM_MODEL=openai/auto
+# 免费层延迟高、易限流，适当调大超时
+LLM_TIMEOUT_SEC=150
+# Agent tool-calling 固定到支持工具调用的模型（如 NVIDIA NIM 的 llama-3.3-70b）
+AGENT_LITELLM_MODEL=openai/llama-3.3-70b
+```
+
+注意事项：
+
+- `model=auto` 由网关自动路由并在 429/5xx 时跨模型 failover；只配置一家 provider 时不会跨厂商兜底。
+- **tool-calling**：Agent（含新闻情报 Agent）需要支持函数调用的模型，建议用 `AGENT_LITELLM_MODEL` 显式固定，避免 `auto` 路由到不支持工具的模型导致 Agent 失效。
+- **vision**：图片选股需 vision 能力模型，确认网关 Fallback Chain 中已启用对应模型。
+- 新闻检索数据源（Tavily/Brave/Bocha 等）不经过 LLM 网关，保持原有搜索配置。
+- freellmapi 定位为个人/本地实验，无生产 SLA；正式发布链路不建议依赖。
+
+### OmniRoute 本地网关（freellmapi 的替代品）
+
+[OmniRoute](https://github.com/diegosouzapw/OmniRoute) 也是 OpenAI-compatible 本地网关，与 freellmapi 二选一，接入方式相同（换 `LLM_CHANNELS`/`base_url`/`model` 即可，后端零改动）。
+
+```bash
+docker run -d --name omniroute -p 20128:20128 -v omniroute-data:/app/data diegosouzapw/omniroute:latest
+# 仪表盘 http://localhost:20128
+```
+
+```env
+LLM_CHANNELS=omniroute
+LLM_OMNIROUTE_PROTOCOL=openai
+LLM_OMNIROUTE_BASE_URL=http://localhost:20128/v1
+LLM_OMNIROUTE_API_KEY=omniroute-local
+LLM_OMNIROUTE_MODELS=auto/best-chat,auto/best-coding
+LITELLM_MODEL=openai/auto/best-chat
+AGENT_LITELLM_MODEL=openai/auto/best-coding
+```
+
+对比要点（本地实测，2026-06-30）：
+
+| 维度 | freellmapi | OmniRoute |
+| --- | --- | --- |
+| 开箱可用 | 需先在仪表盘加 provider key | **免配置**：内置匿名免费 provider，直接可用 |
+| 模型选择 | 具体模型名或 `auto` | 语义别名（`auto/best-coding`、`best-reasoning`、`best-vision`…）智能路由 |
+| Provider 数 | 16 家 free tier | 231+（50+ free），4 层 fallback（订阅→API→便宜→免费） |
+| tool-calling | 支持（需选对模型） | 支持（best-coding，实测可用） |
+| 额外能力 | 基础 failover / 健康检查 | token 压缩、MCP 工具、记忆(FTS5+向量)、guardrails、17 路由策略 |
+| 简单请求延迟 | 更低更稳（实测 0.2–0.9s） | 略高（~2s），且对超短输出会触发 quality 校验返回 502 |
+| 定位 | 轻量、稳定、易懂 | 功能多、可玩性高，但组件多、复杂度高 |
+
+选择建议：追求**稳定 + 简单**用 freellmapi；追求**功能丰富 + 免配置 + 省 token** 用 OmniRoute。二者都只是本地实验用途，无生产 SLA。
+
 ## 常用服务商预设
 
 | 服务商 | 渠道名 | 协议 | Base URL | 模型示例 |

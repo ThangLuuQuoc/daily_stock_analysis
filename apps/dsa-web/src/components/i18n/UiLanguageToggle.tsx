@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Languages } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 import { cn } from '../../utils/cn';
 
@@ -25,10 +25,13 @@ export const UiLanguageToggle: React.FC<UiLanguageToggleProps> = ({
   labelClassName,
 }) => {
   const { language, setLanguage, t } = useUiLanguage();
-  const nextLanguage = language === 'zh' ? 'en' : 'zh';
+  // Chỉ chuyển giữa Tiếng Việt ↔ English (đã bỏ tiếng Trung khỏi bộ chuyển).
+  // Nếu state cũ còn là 'zh', bấm sẽ đưa về 'vi'.
+  const nextLanguage = language === 'vi' ? 'en' : 'vi';
   const isNavVariant = variant === 'nav';
   const isRailVariant = variant === 'rail';
-  const label = language === 'zh' ? t('language.uiLanguage') : t('language.current');
+  const label = t('language.current');
+  const shortLabel = language === 'en' ? t('language.short.en') : t('language.short.vi');
 
   return (
     <div className={cn('relative', isRailVariant ? 'w-full' : '', wrapperClassName)}>
@@ -49,9 +52,9 @@ export const UiLanguageToggle: React.FC<UiLanguageToggleProps> = ({
         aria-label={t('language.toggle')}
         title={t('language.toggle')}
       >
-        <Languages className={iconClassName ?? cn('shrink-0', isRailVariant ? 'h-[18px] w-[18px]' : isNavVariant ? 'h-5 w-5' : 'h-4 w-4')} />
+        <Globe className={iconClassName ?? cn('shrink-0', isRailVariant ? 'h-[18px] w-[18px]' : isNavVariant ? 'h-5 w-5' : 'h-4 w-4')} />
         {isRailVariant ? (
-          <span className={labelClassName}>{language === 'zh' ? t('language.short.zh') : t('language.short.en')}</span>
+          <span className={labelClassName}>{shortLabel}</span>
         ) : isNavVariant ? (
           collapsed ? null : <span className="truncate text-[1.02rem] font-medium">{label}</span>
         ) : (

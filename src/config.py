@@ -287,6 +287,46 @@ def resolve_news_window_days(news_max_age_days: int, news_strategy_profile: Opti
     return max(1, min(max(1, int(news_max_age_days)), profile_days))
 
 
+# 越南市场新闻源默认域名（VN_NEWS_ENABLED=true 时把搜索限定到这些站点；可用 VN_NEWS_DOMAINS 覆盖/扩充）
+DEFAULT_VN_NEWS_DOMAINS = (
+    "cafef.vn",
+    "vietstock.vn",
+    "vneconomy.vn",
+    "tinnhanhchungkhoan.vn",
+    "vietnambiz.vn",
+    "fireant.vn",
+    "cafebiz.vn",
+    "baodautu.vn",
+    "vnexpress.net",
+    "24hmoney.vn",
+    "simplize.vn",
+    "ndh.vn",
+)
+
+
+def normalize_news_domain(value: Optional[str]) -> str:
+    """Normalize a news-source domain: strip scheme/path/leading www, lowercase."""
+    if not value:
+        return ""
+    host = str(value).strip().lower()
+    if "://" in host:
+        host = host.split("://", 1)[1]
+    host = host.split("/", 1)[0]
+    if host.startswith("www."):
+        host = host[4:]
+    return host.strip()
+
+
+def parse_vn_news_domains(value: Optional[str]) -> List[str]:
+    """Parse VN_NEWS_DOMAINS (comma-separated); fallback to defaults when empty."""
+    items: List[str] = []
+    for raw in (value or "").split(","):
+        host = normalize_news_domain(raw)
+        if host and host not in items:
+            items.append(host)
+    return items or list(DEFAULT_VN_NEWS_DOMAINS)
+
+
 def normalize_agent_context_compression_profile(value: Optional[str]) -> str:
     """Normalize visible-chat context compression profile values."""
     candidate = (value or AGENT_CONTEXT_COMPRESSION_DEFAULT_PROFILE).strip().lower()
@@ -687,6 +727,12 @@ class Config:
     longbridge_oauth_client_id: Optional[str] = None
     stock_index_remote_update_enabled: bool = True
 
+    # === OpenStock (本地越南市场数据服务) ===
+    # 本地运行的 OpenStock REST 服务，提供越南市场（HOSE/HNX/UPCOM）数据。
+    # 仅使用其公开 endpoint；adapter 见 data_provider/openstock_fetcher.py。
+    openstock_base_url: str = "http://localhost:3000/api/v1"
+    openstock_enabled: bool = False
+
     # === AlphaSift optional stock screening integration ===
     alphasift_enabled: bool = False
     alphasift_install_spec: str = DEFAULT_ALPHASIFT_INSTALL_SPEC
@@ -777,6 +823,8 @@ class Config:
     # === 新闻与分析筛选配置 ===
     news_max_age_days: int = 3   # 新闻最大时效（天）
     news_strategy_profile: str = "short"  # 新闻窗口策略档位：ultra_short/short/medium/long
+    vn_news_enabled: bool = False  # 越南市场新闻模式：开启后搜索限定到越南财经站点并用越南语查询
+    vn_news_domains: List[str] = field(default_factory=lambda: list(DEFAULT_VN_NEWS_DOMAINS))
     news_intel_retention_days: int = 30  # 本地资讯池保留天数
     news_intel_fetch_timeout_sec: float = 8.0  # 单个资讯源拉取超时
     news_intel_max_items_per_source: int = 50  # 单次每个资讯源最多采集条数
@@ -1556,6 +1604,10 @@ class Config:
             longbridge_app_secret=os.getenv('LONGBRIDGE_APP_SECRET') or None,
             longbridge_access_token=os.getenv('LONGBRIDGE_ACCESS_TOKEN') or None,
             longbridge_oauth_client_id=os.getenv('LONGBRIDGE_OAUTH_CLIENT_ID') or None,
+            openstock_base_url=(
+                os.getenv('OPENSTOCK_BASE_URL') or 'http://localhost:3000/api/v1'
+            ).rstrip('/'),
+            openstock_enabled=parse_env_bool(os.getenv('OPENSTOCK_ENABLED'), default=False),
             stock_index_remote_update_enabled=parse_env_bool(
                 os.getenv('STOCK_INDEX_REMOTE_UPDATE_ENABLED'),
                 default=True,
@@ -1632,6 +1684,8 @@ class Config:
             news_strategy_profile=cls._parse_news_strategy_profile(
                 os.getenv('NEWS_STRATEGY_PROFILE', 'short')
             ),
+            vn_news_enabled=parse_env_bool(os.getenv('VN_NEWS_ENABLED'), False),
+            vn_news_domains=parse_vn_news_domains(os.getenv('VN_NEWS_DOMAINS')),
             news_intel_retention_days=parse_env_int(
                 os.getenv('NEWS_INTEL_RETENTION_DAYS'),
                 30,
@@ -2429,10 +2483,10 @@ class Config:
         """解析大盘复盘市场区域，非法值记录警告后回退为 cn"""
         import logging
         v = (value or 'cn').strip().lower()
-        if v in ('cn', 'us', 'hk', 'both'):
+        if v in ('cn', 'us', 'hk', 'vn', 'both'):
             return v
         logging.getLogger(__name__).warning(
-            f"MARKET_REVIEW_REGION 配置值 '{value}' 无效，已回退为默认值 'cn'（合法值：cn / hk / us / both）"
+            f"MARKET_REVIEW_REGION 配置值 '{value}' 无效，已回退为默认值 'cn'（合法值：cn / hk / us / vn / both）"
         )
         return 'cn'
 

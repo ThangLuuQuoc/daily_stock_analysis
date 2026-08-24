@@ -172,7 +172,8 @@ class StockService:
         """
         return {
             "stock_code": stock_code,
-            "stock_name": f"股票{stock_code}",
+            # Tên chưa xác định → dùng mã (trung lập ngôn ngữ) thay vì "股票{code}".
+            "stock_name": stock_code,
             "current_price": 0.0,
             "change": None,
             "change_percent": None,
