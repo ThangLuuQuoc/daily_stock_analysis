@@ -123,11 +123,11 @@ nhiều so với giả định lúc đó.
 
 | File | Loại | Trạng thái |
 |---|---|---|
-| `src/report_language.py` | BRANCH + OVERWRITE | `SUPPORTED=("zh","en","vi")` đối đầu `("zh","en","ko")` của upstream; thêm `"vi"` vào dict `key→{lang}` → **13 hunk xung đột**. Phase 3b: chuyển sang overlay `src/report_language_vi.py` |
+| `src/report_language.py` | HOOK ✅ **(Phase 3b xong)** | **13 hunk → 1 hunk.** Toàn bộ dữ liệu `vi` chuyển sang `src/report_language_vi.py` và tiêm lúc import. Còn 3 điểm chạm: `SUPPORTED_REPORT_LANGUAGES` (+`"vi"`), registry `_SENTIMENT_LABEL_BANDS`, gọi `_register_vi()`. Hunk còn lại nằm đúng ở dòng khai báo ngôn ngữ — merge bằng cách giữ cả hai: `("zh","en","ko","vi")`. Test: `tests/test_report_language_vi_coverage.py` (11) |
+| `src/market_phase_prompt.py` | HOOK ✅ **(Phase 3a+3c xong)** | +29/−29 ghi đè → +18/−1 registry `_EXTRA_FORMATTERS`. `vi` ở `src/market_phase_prompt_vi.py`. **`zh` đã phục hồi** → `ko` của upstream không còn nhận tiếng Việt. `tests/test_market_phase_prompt.py` 8 lỗi → 11/11 xanh |
+| `src/market_phase_summary.py` | HOOK ✅ **(Phase 3a+3c xong)** | +22/−22 ghi đè → +32/−3 registry 5 bảng nhãn. `vi` ở `src/market_phase_summary_vi.py` (thuần dữ liệu) |
 | `src/analyzer.py` | BRANCH + **OVERWRITE** | **15 hunk xung đột**. Nhánh chỉ thị output `vi` = giữ; phần dịch scaffold tại chỗ = bỏ |
 | `src/market_analyzer.py` | **OVERWRITE** | +138/−138 = thay 1:1 literal. **13 hunk.** Phase 3a: `git checkout vendor --` |
-| `src/market_phase_prompt.py` | **OVERWRITE** | `_PHASE_LABELS_ZH` chứa tiếng Việt, `_format_zh()` emit tiếng Việt. Phase 3a + 3c |
-| `src/market_phase_summary.py` | **OVERWRITE** | như trên |
 | `src/stock_analyzer.py` | **OVERWRITE** | +62/−62 |
 | `src/market_context.py` | **OVERWRITE** | +15/−15 |
 | `src/analysis_context_pack_prompt.py` | **OVERWRITE** | +41/−40 |
