@@ -45,11 +45,11 @@ _ENGLISH_SECTION_PATTERNS = {
 }
 
 _CHINESE_SECTION_PATTERNS = {
-    "market_summary": r"###\s*(?:1\.\s*)?(?:Tổng quan phiên|Tổng quan thị trường)",
-    "index_commentary": r"###\s*(?:2\.\s*)?(?:Cấu trúc chỉ số|Bình luận chỉ số|Các chỉ số chính)",
-    "sector_highlights": r"###\s*(?:3\.\s*)?(?:Nhóm ngành dẫn dắt|Diễn biến nhóm ngành|Hiệu suất nhóm ngành)",
-    "funds_sentiment": r"###\s*(?:4\.\s*)?(?:Dòng tiền và tâm lý|Diễn biến dòng tiền)",
-    "news_catalysts": r"###\s*(?:5\.\s*)?(?:Tin tức xúc tác|Triển vọng phiên tới)",
+    "market_summary": r"###\s*一、(?:盘面总览|市场总结)",
+    "index_commentary": r"###\s*二、(?:指数结构|指数点评|主要指数)",
+    "sector_highlights": r"###\s*三、(?:板块主线|热点解读|板块表现)",
+    "funds_sentiment": r"###\s*四、(?:资金与情绪|资金动向)",
+    "news_catalysts": r"###\s*五、(?:消息催化|后市展望)",
 }
 
 
@@ -153,32 +153,55 @@ class MarketAnalyzer:
         return f"component=market_review region={self.region}"
 
     def _get_review_language(self) -> str:
-        return normalize_report_language(
+        """Ngon ngu CAU TRUC cua bao cao phuc thi (nhan bang, heading, regex parse).
+
+        fork VN: `vi` dung cau truc tieng Anh, giong cach upstream ap cho `ko`
+        (v3.25.0 `market_analyzer.py`: `return "en" if language == "ko" else language`).
+        Noi dung van la tieng Viet nho output-language directive trong prompt;
+        chi 5 heading muc la tieng Anh. Doi lai: file nay giu nguyen ban upstream
+        (truoc day bi ghi de 139 dong / 23 hunk).
+
+        Quan trong: _ENGLISH_SECTION_PATTERNS / _CHINESE_SECTION_PATTERNS la
+        PARSER regex tach muc tu output LLM — neu prompt tieng Anh ma parser doi
+        heading tieng Viet thi tach muc se that bai am tham. Route `vi` -> `en`
+        giu prompt va parser cung mot ngon ngu.
+        """
+        language = normalize_report_language(
             getattr(getattr(self, "config", None), "report_language", "zh")
         )
+        return "en" if language == "vi" else language
 
     def _get_template_review_language(self) -> str:
-        return normalize_report_language(
+        """Ngon ngu cho bao cao TEMPLATE (fallback khi LLM that bai).
+
+        fork VN: `vi` -> `en`. Duong nay KHONG qua LLM nen khong co
+        output-language directive de cuu; neu de `vi` thi no roi vao nhanh `else`
+        (= zh) va fallback se ra TIENG TRUNG. Tieng Anh la lua chon it xau nhat
+        cho nguoi dung Viet. Muon fallback tieng Viet that thi phai viet
+        _build_template_review ban vi (chua lam — xem plan Phase 3).
+        """
+        language = normalize_report_language(
             getattr(getattr(self, "config", None), "report_language", "zh")
         )
+        return "en" if language == "vi" else language
 
     def _get_market_scope_name(self, review_language: str | None = None) -> str:
         review_language = review_language or self._get_review_language()
         if self.region == "us":
-            return "US market" if review_language == "en" else "thị trường Mỹ"
+            return "US market" if review_language == "en" else "美股市场"
         if self.region == "hk":
-            return "Hong Kong market" if review_language == "en" else "thị trường Hồng Kông"
+            return "Hong Kong market" if review_language == "en" else "港股市场"
         if review_language == "en":
             return "A-share market"
-        return "thị trường A-share"
+        return "A股市场"
 
     def _get_turnover_unit_label(self) -> str:
         """Return the turnover unit label for the current market/language."""
         if self.region == "us":
-            return "USD bn" if self._get_review_language() == "en" else "tỷ USD"
+            return "USD bn" if self._get_review_language() == "en" else "十亿美元"
         if self.region == "hk":
-            return "HKD bn" if self._get_review_language() == "en" else "tỷ HKD"
-        return "CNY 100m" if self._get_review_language() == "en" else "trăm triệu CNY"
+            return "HKD bn" if self._get_review_language() == "en" else "十亿港元"
+        return "CNY 100m" if self._get_review_language() == "en" else "亿"
 
     def _format_turnover_value(self, amount_raw: float) -> str:
         """Format raw turnover according to market-specific units."""
@@ -203,7 +226,7 @@ class MarketAnalyzer:
             market_names = {"us": "US Market Recap", "hk": "HK Market Recap"}
             market_name = market_names.get(self.region, "A-share Market Recap")
             return f"## {date} {market_name}"
-        return f"## {date} Phục thị thị trường"
+        return f"## {date} 大盘复盘"
 
     def _get_index_hint(self) -> str:
         if self._get_review_language() == "en":
@@ -243,23 +266,23 @@ Focus on HSI trend, southbound flow dynamics, and sector rotation to define next
 - Neutral: mixed index signals; focus on selective relative strength.
 - Risk-off: failed breakouts and rising volatility; prioritize capital preservation."""
         if self.region == "us" and self._get_review_language() == "zh":
-            return """## Chiến lược phục thị ba bước thị trường Mỹ
-Tập trung vào xu hướng chỉ số, bối cảnh vĩ mô và luân chuyển nhóm ngành để đưa ra khung kiểm soát rủi ro và tỷ trọng cho phiên tới.
+            return """## 美股市场三段式复盘策略
+聚焦指数趋势、宏观叙事与板块轮动，给出次日风控与仓位框架。
 
-### Nguyên tắc chiến lược
-- Trước tiên xem S&P 500, Nasdaq, Dow Jones có cùng chiều hay không, xác nhận xu hướng chủ đạo có nhất quán không.
-- Kết hợp các chỉ báo vĩ mô và thanh khoản để nhận diện khẩu vị rủi ro đang hồi phục hay suy yếu.
-- Chuyển kết quả phục thị thành khuyến nghị hành động "tấn công/cân bằng/phòng thủ", và nêu rõ điều kiện kích hoạt vô hiệu.
+### 策略原则
+- 先看标普500、纳斯达克、道琼斯是否同向，确认主线是否一致。
+- 结合宏观与流动性指标，识别风险偏好是修复还是转弱。
+- 将复盘输出映射为“进攻/均衡/防守”动作建议，并给出明确触发失效条件。
 
-### Các chiều phân tích
-- Cấu trúc xu hướng: xác định thị trường đang bứt phá, đi ngang hay chuyển sang phòng thủ, đánh giá có phân kỳ tại vùng hỗ trợ then chốt không.
-- Dòng tiền và tâm lý: phân biệt tác động của chính sách vĩ mô, mặt bằng tiền tệ và độ biến động lên rủi ro cổ phiếu.
-- Manh mối chủ đề: nhận diện chủ đề có tính bền vững nhất và liệu luân chuyển nhóm ngành đã hình thành xu hướng có thể giao dịch chưa.
+### 分析维度
+- 趋势结构：明确市场处于上冲、震荡还是防守转向，判断是否存在关键支撑位背离。
+- 资金与情绪：区分宏观政策、货币面与波动率对权益风险的影响。
+- 主题线索：识别持续性最强的主题与板块轮动是否形成可交易主线。
 
-### Khung hành động
-- Tấn công: các nhóm ngành chủ đạo cùng đi lên và thanh khoản/vùng rủi ro đồng thời cải thiện.
-- Cân bằng: chỉ số phân hóa hoặc thanh khoản chưa nở rõ, thực thi tỷ trọng thận trọng.
-- Phòng thủ: khi mất ngưỡng bứt phá và độ biến động tăng, ưu tiên giảm tỷ trọng và giữ khả năng giao dịch khi hồi phục."""
+### 行动框架
+- 进攻：主板块联动上行且量能/风险位同步改善。
+- 均衡：指数分化或量能未明显放大，仓位保守执行。
+- 防守：突破失守且波动率抬升时，优先减码并保留反弹可交易性。"""
         if not (self.region == "cn" and self._get_review_language() == "en"):
             return self.strategy.to_prompt_block()
         return """## Strategy Blueprint: A-share Three-Phase Recap Strategy
@@ -298,10 +321,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 - **Sector Themes**: Focus on tech/internet platform persistence and financials/property policy sensitivity.
 """
         if self.region == "us" and review_language == "zh":
-            return """### 6. Khung chiến lược
-- **Cấu trúc xu hướng**: đánh giá trạng thái thị trường ở thế tấn công, đi ngang hay phòng thủ có nhất quán không.
-- **Dòng tiền và tâm lý**: kết hợp độ biến động, độ rộng và luân chuyển chủ đề để đánh giá khẩu vị rủi ro.
-- **Chủ đề chủ đạo**: nhận diện xu hướng ngành có thể tiếp diễn và mở rộng cùng các manh mối phòng thủ.
+            return """### 六、策略框架
+- **趋势结构**：判断市场在进攻、震荡与防守中的状态是否一致。
+- **资金与情绪**：结合波动率、宽度和主题轮动评估风险偏好。
+- **主题主线**：识别可延续和可放大的行业主线与防守线索。
 """
         if not (self.region == "cn" and review_language == "en"):
             return self.strategy.to_markdown_block()
@@ -323,11 +346,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             }
         else:
             mapping = {
-                "strong_up": "tăng mạnh",
-                "mild_up": "tăng nhẹ",
-                "mild_down": "giảm nhẹ",
-                "strong_down": "giảm rõ rệt",
-                "range": "đi ngang tích lũy",
+                "strong_up": "强势上涨",
+                "mild_up": "小幅上涨",
+                "mild_down": "小幅下跌",
+                "strong_down": "明显下跌",
+                "range": "震荡整理",
             }
         return mapping[mood_key]
 
@@ -496,16 +519,16 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         search_queries = self.profile.news_queries
         review_language = self._get_review_language()
         market_names = {
-            "cn": "thị trường chung" if review_language == "zh" else "A-share market",
-            "us": "thị trường Mỹ" if review_language == "zh" else "US market",
-            "hk": "thị trường Hồng Kông" if review_language == "zh" else "HK market",
+            "cn": "大盘" if review_language == "zh" else "A-share market",
+            "us": "美股市场" if review_language == "zh" else "US market",
+            "hk": "港股市场" if review_language == "zh" else "HK market",
         }
         
         try:
             logger.info("[大盘] %s action=search_market_news status=start", self._log_context())
             
             # 根据 region 设置搜索上下文名称，避免美股搜索被解读为 A 股语境
-            market_name = market_names.get(self.region, "thị trường chung")
+            market_name = market_names.get(self.region, "大盘")
             for query in search_queries:
                 response = self.search_service.search_stock_news(
                     stock_code="market",
@@ -841,15 +864,15 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         up_ratio = overview.up_count / participation if participation else 0.0
         limit_spread = overview.limit_up_count - overview.limit_down_count
         lines = [
-            f"- **Tín hiệu phiên**: {score}/100 ({label}, {light['label']})",
-            f"- **Cơ sở tín hiệu**: {'; '.join(light['reasons'])}",
-            f"- **Khuyến nghị thao tác**: {light['guidance']}",
+            f"- **盘面信号**：{score}/100（{label}，{light['label']}）",
+            f"- **信号依据**：{'；'.join(light['reasons'])}",
+            f"- **操作建议**：{light['guidance']}",
             "",
-            "| Chỉ tiêu | Giá trị | Nhận định |",
+            "| 指标 | 数值 | 观察 |",
             "|------|------|------|",
-            f"| Tăng/Giảm/Tham chiếu | {overview.up_count} / {overview.down_count} / {overview.flat_count} | Tỷ lệ tăng (không tính tham chiếu) {up_ratio:.1%} |",
-            f"| Trần/Sàn | {overview.limit_up_count} / {overview.limit_down_count} | Chênh lệch trần-sàn {limit_spread:+d} |",
-            f"| Giá trị giao dịch hai sàn | {overview.total_amount:.0f} trăm triệu | {self._describe_turnover(overview.total_amount)} |",
+            f"| 上涨/下跌/平盘 | {overview.up_count} / {overview.down_count} / {overview.flat_count} | 上涨占比(不含平盘) {up_ratio:.1%} |",
+            f"| 涨停/跌停 | {overview.limit_up_count} / {overview.limit_down_count} | 涨跌停差 {limit_spread:+d} |",
+            f"| 两市成交额 | {overview.total_amount:.0f} 亿 | {self._describe_turnover(overview.total_amount)} |",
         ]
         return "\n".join(lines)
 
@@ -879,14 +902,14 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             reasons = self._build_market_light_reasons_en(overview, score)
         else:
             label_map = {
-                "green": "có thể tấn công",
-                "yellow": "cần quan sát",
-                "red": "thiên phòng thủ",
+                "green": "可进攻",
+                "yellow": "需观察",
+                "red": "偏防守",
             }
             guidance_map = {
-                "green": "Khẩu vị rủi ro tạm ổn, chú ý sự tiếp diễn của xu hướng chủ đạo và kỷ luật tỷ trọng.",
-                "yellow": "Tín hiệu phân hóa, kiểm soát tỷ trọng và chờ xác nhận giá-khối lượng.",
-                "red": "Rủi ro thiên cao, ưu tiên kiểm soát mức sụt giảm, tránh mua đuổi các nhịp hồi yếu.",
+                "green": "风险偏好尚可，关注主线延续与仓位纪律。",
+                "yellow": "信号分化，控制仓位并等待量价确认。",
+                "red": "风险偏高，优先控制回撤，避免追高弱反弹。",
             }
             reasons = self._build_market_light_reasons_zh(overview, score)
 
@@ -910,21 +933,21 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         reasons: List[str] = []
         if up_ratio is not None:
             if up_ratio >= 0.6:
-                reasons.append(f"Tỷ lệ mã tăng {up_ratio:.0%}, hiệu ứng kiếm lời lan tỏa")
+                reasons.append(f"上涨家数占比 {up_ratio:.0%}，赚钱效应扩散")
             elif up_ratio <= 0.4:
-                reasons.append(f"Tỷ lệ mã tăng {up_ratio:.0%}, hiệu ứng thua lỗ khá mạnh")
+                reasons.append(f"上涨家数占比 {up_ratio:.0%}，亏钱效应较强")
             else:
-                reasons.append(f"Tỷ lệ mã tăng {up_ratio:.0%}, thị trường phân hóa")
+                reasons.append(f"上涨家数占比 {up_ratio:.0%}，市场分化")
         index_changes = [idx.change_pct for idx in overview.indices if idx.change_pct is not None]
         if index_changes:
             avg_change = sum(index_changes) / len(index_changes)
-            reasons.append(f"Mức tăng/giảm bình quân các chỉ số chính {avg_change:+.2f}%")
+            reasons.append(f"主要指数平均涨跌幅 {avg_change:+.2f}%")
         if overview.limit_up_count or overview.limit_down_count:
-            reasons.append(f"Chênh lệch trần-sàn {overview.limit_up_count - overview.limit_down_count:+d}")
+            reasons.append(f"涨跌停差 {overview.limit_up_count - overview.limit_down_count:+d}")
         if not reasons and overview.total_amount:
-            reasons.append(f"Giá trị giao dịch {overview.total_amount:.0f} trăm triệu, {self._describe_turnover(overview.total_amount)}")
+            reasons.append(f"成交额 {overview.total_amount:.0f} 亿，{self._describe_turnover(overview.total_amount)}")
         if not reasons:
-            reasons.append("Dữ liệu tăng/giảm có cấu trúc còn hạn chế, đánh giá tổng hợp theo diễn biến hiện có")
+            reasons.append("结构化涨跌数据有限，按可用行情综合判断")
         return reasons[:4]
 
     def _build_market_light_reasons_en(self, overview: MarketOverview, score: int) -> List[str]:
@@ -961,7 +984,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             ]
         else:
             lines = [
-                "| Chỉ số | Mới nhất | Tăng/giảm | Mở cửa | Cao nhất | Thấp nhất | Biên độ | GTGD (trăm triệu) |",
+                "| 指数 | 最新 | 涨跌幅 | 开盘 | 最高 | 最低 | 振幅 | 成交额(亿) |",
                 "|------|------|--------|------|------|------|------|-----------|",
             ]
         for idx in overview.indices:
@@ -989,8 +1012,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 ])
             else:
                 lines.extend([
-                    "#### Nhóm ngành dẫn dắt Top 5",
-                    "| Hạng | Nhóm ngành | Tăng/giảm |",
+                    "#### 领涨板块 Top 5",
+                    "| 排名 | 板块 | 涨跌幅 |",
                     "|------|------|--------|",
                 ])
             for rank, sector in enumerate(overview.top_sectors[:5], 1):
@@ -1008,8 +1031,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 ])
             else:
                 lines.extend([
-                    "#### Nhóm ngành giảm mạnh Top 5",
-                    "| Hạng | Nhóm ngành | Tăng/giảm |",
+                    "#### 领跌板块 Top 5",
+                    "| 排名 | 板块 | 涨跌幅 |",
                     "|------|------|--------|",
                 ])
             for rank, sector in enumerate(overview.bottom_sectors[:5], 1):
@@ -1029,7 +1052,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             ]
         else:
             lines = [
-                "#### Manh mối thị trường ba ngày gần nhất",
+                "#### 近三日市场线索",
             ]
 
         for idx, item in enumerate(news[:5], 1):
@@ -1048,7 +1071,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 
     @classmethod
     def _format_news_catalyst_line(cls, idx: int, item: Any, *, language: str = "zh") -> str:
-        fallback_title = "Untitled catalyst" if language == "en" else "Manh mối chưa đặt tên"
+        fallback_title = "Untitled catalyst" if language == "en" else "未命名线索"
         title = cls._compact_news_text(cls._get_news_field(item, "title"), limit=90) or fallback_title
         source = cls._compact_news_text(cls._get_news_field(item, "source"), limit=40)
         date_text = cls._compact_news_text(cls._get_news_field(item, "published_date"), limit=24)
@@ -1093,12 +1116,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     @staticmethod
     def _describe_turnover(total_amount: float) -> str:
         if total_amount >= 15000:
-            return "thanh khoản sôi động"
+            return "高活跃度"
         if total_amount >= 9000:
-            return "thanh khoản trung bình"
+            return "中等活跃"
         if total_amount > 0:
-            return "co hẹp, chờ đợi"
-        return "chưa có dữ liệu"
+            return "缩量观望"
+        return "暂无数据"
 
     def _build_market_light_scores(self, overview: MarketOverview) -> Dict[str, Any]:
         """Build the canonical Market Light scores used by reports and alerts."""
@@ -1147,13 +1170,13 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 label = "defensive"
         else:
             if score >= 70:
-                label = "mạnh"
+                label = "强势"
             elif score >= 55:
-                label = "thiên tích cực"
+                label = "偏暖"
             elif score >= 40:
-                label = "đi ngang"
+                label = "震荡"
             else:
-                label = "thiên yếu"
+                label = "偏弱"
         return {
             "score": score,
             "temperature_label": label,
@@ -1215,22 +1238,22 @@ Lagging: {bottom_sectors_text if bottom_sectors_text else "N/A"}"""
                 sector_block = "## Sector Performance\n(Sector data not available for this market.)"
         else:
             if self.profile.has_market_stats:
-                stats_block = f"""## Tổng quan thị trường
-- Tăng: {overview.up_count} mã | Giảm: {overview.down_count} mã | Tham chiếu: {overview.flat_count} mã
-- Trần: {overview.limit_up_count} mã | Sàn: {overview.limit_down_count} mã
-- Giá trị giao dịch hai sàn: {overview.total_amount:.0f} trăm triệu"""
+                stats_block = f"""## 市场概况
+- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家
+- 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家
+- 两市成交额: {overview.total_amount:.0f} 亿元"""
             else:
-                stats_block = "## Tổng quan thị trường\n(Thị trường này tạm chưa có thống kê số mã tăng/giảm.)"
+                stats_block = "## 市场概况\n（该市场暂无涨跌家数等统计）"
 
             if self.profile.has_sector_rankings:
-                sector_block = f"""## Hiệu suất nhóm ngành
-Dẫn dắt: {top_sectors_text if top_sectors_text else "chưa có dữ liệu"}
-Giảm mạnh: {bottom_sectors_text if bottom_sectors_text else "chưa có dữ liệu"}"""
+                sector_block = f"""## 板块表现
+领涨: {top_sectors_text if top_sectors_text else "暂无数据"}
+领跌: {bottom_sectors_text if bottom_sectors_text else "暂无数据"}"""
             else:
-                sector_block = "## Hiệu suất nhóm ngành\n(Thị trường này tạm chưa có dữ liệu tăng/giảm nhóm ngành.)"
+                sector_block = "## 板块表现\n（该市场暂无板块涨跌数据）"
 
         data_no_indices_hint = (
-            "Lưu ý: do không lấy được dữ liệu giá, hãy chủ yếu dựa vào [Tin tức thị trường] để phân tích và tổng kết định tính, không bịa ra điểm số chỉ số cụ thể."
+            "注意：由于行情数据获取失败，请主要根据【市场新闻】进行定性分析和总结，不要编造具体的指数点位。"
             if not indices_text
             else ""
         )
@@ -1243,8 +1266,8 @@ Giảm mạnh: {bottom_sectors_text if bottom_sectors_text else "chưa có dữ 
             indices_placeholder = indices_text if indices_text else "No index data (API error)"
             news_placeholder = news_text if news_text else "No relevant news"
         else:
-            indices_placeholder = indices_text if indices_text else "Chưa có dữ liệu chỉ số (lỗi giao diện)"
-            news_placeholder = news_text if news_text else "Chưa có tin liên quan"
+            indices_placeholder = indices_text if indices_text else "暂无指数数据（接口异常）"
+            news_placeholder = news_text if news_text else "暂无相关新闻"
 
         if review_language == "en":
             report_title = self._get_review_title(overview.date).removeprefix("## ").strip()
@@ -1310,32 +1333,32 @@ Giảm mạnh: {bottom_sectors_text if bottom_sectors_text else "chưa có dữ 
 Output the report content directly, no extra commentary.
 """
 
-        # Ngữ cảnh A-share dùng phần hướng dẫn tiếng Việt
-        return f"""Bạn là một chuyên gia phân tích thị trường A/H/Mỹ chuyên nghiệp, hãy dựa vào dữ liệu dưới đây để tạo một báo cáo phục thị {self._get_market_scope_name('zh')} có cấu trúc.
+        # A 股场景使用中文提示语
+        return f"""你是一位专业的A/H/美股市场分析师，请根据以下数据生成一份结构化的{self._get_market_scope_name('zh')}大盘复盘报告。
 
-[Quan trọng] Yêu cầu đầu ra:
-- Bắt buộc xuất ra định dạng văn bản Markdown thuần
-- Cấm xuất định dạng JSON
-- Cấm xuất khối mã (code block)
-- Chỉ dùng ít emoji ở tiêu đề (mỗi tiêu đề tối đa 1)
-- Báo cáo phải giống bàn làm việc sau phiên của trader: đưa kết luận trước, sau đó triển khai theo bảng dữ liệu, xu hướng chủ đạo, xúc tác, kế hoạch
-- Không liệt kê lặp lại dữ liệu bảng đã được hệ thống chèn sẵn; phần nội dung chịu trách nhiệm giải thích ý nghĩa đằng sau bảng
+【重要】输出要求：
+- 必须输出纯 Markdown 文本格式
+- 禁止输出 JSON 格式
+- 禁止输出代码块
+- emoji 仅在标题处少量使用（每个标题最多1个）
+- 报告要像交易员盘后工作台：先给结论，再按数据表、主线、催化、计划展开
+- 不要重复列出已由系统注入的表格数据；正文负责解释表格背后的含义
 
 ---
 
-# Dữ liệu thị trường hôm nay
+# 今日市场数据
 
-## Ngày
+## 日期
 {overview.date}
 
-## Các chỉ số chính
+## 主要指数
 {indices_placeholder}
 
 {stats_block}
 
 {sector_block}
 
-## Tin tức thị trường
+## 市场新闻
 {news_placeholder}
 
 {data_no_indices_hint}
@@ -1344,36 +1367,36 @@ Output the report content directly, no extra commentary.
 
 ---
 
-# Mẫu định dạng đầu ra (hãy tuân thủ nghiêm ngặt mẫu này)
+# 输出格式模板（请严格按此格式输出）
 
-## {overview.date} Phục thị thị trường
+## {overview.date} 大盘复盘
 
-> Một câu nêu trạng thái thị trường hôm nay, mâu thuẫn cốt lõi và hướng quan sát ưu tiên cho ngày mai.
+> 一句话给出今日市场状态、核心矛盾和明日优先观察方向。
 
-### Tổng quan phiên
-(2-3 câu khái quát chỉ số, số mã tăng/giảm, giá trị giao dịch và nhiệt độ tâm lý, nêu rõ phán đoán "mạnh/thiên tích cực/đi ngang/thiên yếu")
+### 一、盘面总览
+（2-3句话概括指数、涨跌家数、成交额和情绪温度，明确“强势/偏暖/震荡/偏弱”判断）
 
-### Cấu trúc chỉ số
-({self._get_index_hint()}, nêu rõ ai đang giữ nhịp, ai đang kéo lùi, cùng các vùng hỗ trợ/kháng cự then chốt)
+### 二、指数结构
+（{self._get_index_hint()}，说明谁在护盘、谁在拖累，以及关键支撑/压力）
 
-### Nhóm ngành dẫn dắt
-(Phân tích logic đằng sau các nhóm ngành dẫn dắt/giảm mạnh, tính bền vững và liệu đã hình thành xu hướng chủ đạo chưa)
+### 三、板块主线
+（分析领涨/领跌板块背后的逻辑、持续性和是否形成主线）
 
-### Dòng tiền và tâm lý
-(Diễn giải giá trị giao dịch, cấu trúc trần/sàn, độ rộng thị trường và khẩu vị rủi ro)
+### 四、资金与情绪
+（解读成交额、涨跌停结构、市场宽度和风险偏好）
 
-### Tin tức xúc tác
-(Kết hợp tin tức ba ngày gần nhất, chắt lọc các xúc tác hoặc nhiễu loạn thực sự ảnh hưởng đến giao dịch ngày mai)
+### 五、消息催化
+（结合近三日新闻，提炼真正影响明日交易的催化或扰动）
 
-### Kế hoạch giao dịch ngày mai
-(Đưa ra kết luận tấn công/cân bằng/phòng thủ, vùng tỷ trọng, hướng quan tâm, hướng cần tránh và một điều kiện kích hoạt vô hiệu)
+### 六、明日交易计划
+（给出进攻/均衡/防守结论、仓位区间、关注方向、回避方向和一个触发失效条件）
 
-### Cảnh báo rủi ro
-(Liệt kê các điểm rủi ro cần chú ý; cuối cùng bổ sung "Khuyến nghị chỉ mang tính tham khảo, không phải lời khuyên đầu tư".)
+### 七、风险提示
+（列出需要关注的风险点；最后补充“建议仅供参考，不构成投资建议”。）
 
 ---
 
-Hãy xuất trực tiếp nội dung báo cáo phục thị, không xuất các văn bản giải thích khác.
+请直接输出复盘报告内容，不要输出其他说明文字。
 """
     
     def _generate_template_review(self, overview: MarketOverview, news: List) -> str:
@@ -1455,37 +1478,37 @@ Market conditions can change quickly. The data above is for reference only and d
 """
             return report
 
-        market_labels = {"cn": "A-share", "us": "Mỹ", "hk": "Hồng Kông"}
-        market_label = market_labels.get(self.region, "A-share")
+        market_labels = {"cn": "A股", "us": "美股", "hk": "港股"}
+        market_label = market_labels.get(self.region, "A股")
         dashboard_block = self._build_stats_block(overview)
         indices_block = self._build_indices_block(overview)
         sector_block = self._build_sector_block(overview)
-        return f"""## {overview.date} Phục thị thị trường
+        return f"""## {overview.date} 大盘复盘
 
-> Hôm nay thị trường {market_label} nhìn chung thể hiện trạng thái **{market_mood}**, ưu tiên quan sát lực đỡ của chỉ số, biến động giá trị giao dịch và tính bền vững của nhóm ngành.
+> 今日{market_label}市场整体呈现**{market_mood}**态势，优先观察指数承接、成交额变化和板块持续性。
 
-### Tổng quan phiên
-{dashboard_block or "Chưa có dữ liệu độ rộng thị trường."}
+### 一、盘面总览
+{dashboard_block or "暂无市场宽度数据。"}
 
-### Cấu trúc chỉ số
-{indices_block or indices_text or "Chưa có dữ liệu chỉ số."}
+### 二、指数结构
+{indices_block or indices_text or "暂无指数数据。"}
 
-### Nhóm ngành dẫn dắt
-{sector_block or "- Chưa có dữ liệu xếp hạng tăng/giảm nhóm ngành."}
+### 三、板块主线
+{sector_block or "- 暂无板块涨跌榜数据。"}
 
-### Dòng tiền và tâm lý
-- Nhìn từ giá trị giao dịch và số mã tăng/giảm, hiện tại nên chờ xác nhận, tránh mua đuổi chỉ dựa vào một điểm nóng đơn lẻ.
+### 四、资金与情绪
+- 结合成交额和涨跌家数看，当前更适合等待确认，避免仅凭单一热点追高。
 
-### Tin tức xúc tác
-- Khi chưa có tin khả dụng, nên giảm mức chắc chắn trong phán đoán về tính bền vững của chủ đề.
+### 五、消息催化
+- 暂无可用新闻时，应降低对题材持续性的确定性判断。
 
 {self._get_strategy_markdown_block(template_language)}
 
-### Cảnh báo rủi ro
-- Thị trường có rủi ro, đầu tư cần thận trọng. Dữ liệu trên chỉ mang tính tham khảo, không phải lời khuyên đầu tư.
+### 七、风险提示
+- 市场有风险，投资需谨慎。以上数据仅供参考，不构成投资建议。
 
 ---
-*Thời gian phục thị: {datetime.now().strftime('%H:%M')}*
+*复盘时间: {datetime.now().strftime('%H:%M')}*
 """
     
     def _run_daily_review_parts(self) -> MarketLightReviewResult:
@@ -1544,7 +1567,7 @@ Market conditions can change quickly. The data above is for reference only and d
                     continue
                 seen_urls.add(url)
                 merged_local.append({
-                    "title": item.get("title") or "Tin chưa đặt tên",
+                    "title": item.get("title") or "未命名资讯",
                     "snippet": item.get("summary") or "",
                     "source": item.get("source") or item.get("source_name") or "local-intel",
                     "published_date": item.get("published_at") or "",
