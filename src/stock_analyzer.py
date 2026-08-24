@@ -217,7 +217,7 @@ class StockTrendAnalyzer:
         
         if df is None or df.empty or len(df) < 20:
             logger.warning(f"{code} 数据不足，无法进行趋势分析")
-            result.risk_factors.append("Dữ liệu không đủ, không thể hoàn tất phân tích")
+            result.risk_factors.append("数据不足，无法完成分析")
             return result
         
         # 确保数据按日期排序
@@ -354,16 +354,16 @@ class StockTrendAnalyzer:
             
             if curr_spread > prev_spread and curr_spread > 5:
                 result.trend_status = TrendStatus.STRONG_BULL
-                result.ma_alignment = "Xu hướng tăng mạnh, các đường MA phân kỳ đi lên"
+                result.ma_alignment = "强势多头排列，均线发散上行"
                 result.trend_strength = 90
             else:
                 result.trend_status = TrendStatus.BULL
-                result.ma_alignment = "Xu hướng tăng MA5>MA10>MA20"
+                result.ma_alignment = "多头排列 MA5>MA10>MA20"
                 result.trend_strength = 75
                 
         elif ma5 > ma10 and ma10 <= ma20:
             result.trend_status = TrendStatus.WEAK_BULL
-            result.ma_alignment = "Xu hướng tăng yếu, MA5>MA10 nhưng MA10≤MA20"
+            result.ma_alignment = "弱势多头，MA5>MA10 但 MA10≤MA20"
             result.trend_strength = 55
             
         elif ma5 < ma10 < ma20:
@@ -373,21 +373,21 @@ class StockTrendAnalyzer:
             
             if curr_spread > prev_spread and curr_spread > 5:
                 result.trend_status = TrendStatus.STRONG_BEAR
-                result.ma_alignment = "Xu hướng giảm mạnh, các đường MA phân kỳ đi xuống"
+                result.ma_alignment = "强势空头排列，均线发散下行"
                 result.trend_strength = 10
             else:
                 result.trend_status = TrendStatus.BEAR
-                result.ma_alignment = "Xu hướng giảm MA5<MA10<MA20"
+                result.ma_alignment = "空头排列 MA5<MA10<MA20"
                 result.trend_strength = 25
                 
         elif ma5 < ma10 and ma10 >= ma20:
             result.trend_status = TrendStatus.WEAK_BEAR
-            result.ma_alignment = "Xu hướng giảm yếu, MA5<MA10 nhưng MA10≥MA20"
+            result.ma_alignment = "弱势空头，MA5<MA10 但 MA10≥MA20"
             result.trend_strength = 40
             
         else:
             result.trend_status = TrendStatus.CONSOLIDATION
-            result.ma_alignment = "Các đường MA đan xen, xu hướng không rõ"
+            result.ma_alignment = "均线缠绕，趋势不明"
             result.trend_strength = 50
     
     def _calculate_bias(self, result: TrendAnalysisResult) -> None:
@@ -430,20 +430,20 @@ class StockTrendAnalyzer:
         if result.volume_ratio_5d >= self.VOLUME_HEAVY_RATIO:
             if price_change > 0:
                 result.volume_status = VolumeStatus.HEAVY_VOLUME_UP
-                result.volume_trend = "Tăng kèm khối lượng lớn, lực mua mạnh"
+                result.volume_trend = "放量上涨，多头力量强劲"
             else:
                 result.volume_status = VolumeStatus.HEAVY_VOLUME_DOWN
-                result.volume_trend = "Giảm kèm khối lượng lớn, chú ý rủi ro"
+                result.volume_trend = "放量下跌，注意风险"
         elif result.volume_ratio_5d <= self.VOLUME_SHRINK_RATIO:
             if price_change > 0:
                 result.volume_status = VolumeStatus.SHRINK_VOLUME_UP
-                result.volume_trend = "Tăng kèm khối lượng thấp, động lực đi lên yếu"
+                result.volume_trend = "缩量上涨，上攻动能不足"
             else:
                 result.volume_status = VolumeStatus.SHRINK_VOLUME_DOWN
-                result.volume_trend = "Điều chỉnh kèm khối lượng thấp, đặc điểm rũ hàng rõ (tốt)"
+                result.volume_trend = "缩量回调，洗盘特征明显（好）"
         else:
             result.volume_status = VolumeStatus.NORMAL
-            result.volume_trend = "Khối lượng bình thường"
+            result.volume_trend = "量能正常"
     
     def _analyze_support_resistance(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
         """
@@ -488,7 +488,7 @@ class StockTrendAnalyzer:
         - 死叉：DIF 下穿 DEA
         """
         if len(df) < self.MACD_SLOW:
-            result.macd_signal = "Dữ liệu không đủ"
+            result.macd_signal = "数据不足"
             return
 
         latest = df.iloc[-1]
@@ -518,28 +518,28 @@ class StockTrendAnalyzer:
         # 判断 MACD 状态
         if is_golden_cross and curr_zero > 0:
             result.macd_status = MACDStatus.GOLDEN_CROSS_ZERO
-            result.macd_signal = "⭐ Giao cắt vàng trên đường zero, tín hiệu mua mạnh!"
+            result.macd_signal = "⭐ 零轴上金叉，强烈买入信号！"
         elif is_crossing_up:
             result.macd_status = MACDStatus.CROSSING_UP
-            result.macd_signal = "⚡ DIF cắt lên đường zero, xu hướng mạnh lên"
+            result.macd_signal = "⚡ DIF上穿零轴，趋势转强"
         elif is_golden_cross:
             result.macd_status = MACDStatus.GOLDEN_CROSS
-            result.macd_signal = "✅ Giao cắt vàng, xu hướng đi lên"
+            result.macd_signal = "✅ 金叉，趋势向上"
         elif is_death_cross:
             result.macd_status = MACDStatus.DEATH_CROSS
-            result.macd_signal = "❌ Giao cắt tử, xu hướng đi xuống"
+            result.macd_signal = "❌ 死叉，趋势向下"
         elif is_crossing_down:
             result.macd_status = MACDStatus.CROSSING_DOWN
-            result.macd_signal = "⚠️ DIF cắt xuống đường zero, xu hướng yếu đi"
+            result.macd_signal = "⚠️ DIF下穿零轴，趋势转弱"
         elif result.macd_dif > 0 and result.macd_dea > 0:
             result.macd_status = MACDStatus.BULLISH
-            result.macd_signal = "✓ Cấu trúc tăng, tiếp tục đi lên"
+            result.macd_signal = "✓ 多头排列，持续上涨"
         elif result.macd_dif < 0 and result.macd_dea < 0:
             result.macd_status = MACDStatus.BEARISH
-            result.macd_signal = "⚠ Cấu trúc giảm, tiếp tục đi xuống"
+            result.macd_signal = "⚠ 空头排列，持续下跌"
         else:
             result.macd_status = MACDStatus.BULLISH
-            result.macd_signal = " Vùng trung tính MACD"
+            result.macd_signal = " MACD 中性区域"
 
     def _analyze_rsi(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
         """
@@ -551,7 +551,7 @@ class StockTrendAnalyzer:
         - 40-60：中性区域
         """
         if len(df) < self.RSI_LONG:
-            result.rsi_signal = "Dữ liệu không đủ"
+            result.rsi_signal = "数据不足"
             return
 
         latest = df.iloc[-1]
@@ -567,19 +567,19 @@ class StockTrendAnalyzer:
         # 判断 RSI 状态
         if rsi_mid > self.RSI_OVERBOUGHT:
             result.rsi_status = RSIStatus.OVERBOUGHT
-            result.rsi_signal = f"⚠️ RSI quá mua({rsi_mid:.1f}>70), rủi ro điều chỉnh ngắn hạn cao"
+            result.rsi_signal = f"⚠️ RSI超买({rsi_mid:.1f}>70)，短期回调风险高"
         elif rsi_mid > 60:
             result.rsi_status = RSIStatus.STRONG_BUY
-            result.rsi_signal = f"✅ RSI mạnh({rsi_mid:.1f}), lực mua dồi dào"
+            result.rsi_signal = f"✅ RSI强势({rsi_mid:.1f})，多头力量充足"
         elif rsi_mid >= 40:
             result.rsi_status = RSIStatus.NEUTRAL
-            result.rsi_signal = f" RSI trung tính({rsi_mid:.1f}), đang đi ngang tích lũy"
+            result.rsi_signal = f" RSI中性({rsi_mid:.1f})，震荡整理中"
         elif rsi_mid >= self.RSI_OVERSOLD:
             result.rsi_status = RSIStatus.WEAK
-            result.rsi_signal = f"⚡ RSI yếu({rsi_mid:.1f}), chú ý nhịp hồi"
+            result.rsi_signal = f"⚡ RSI弱势({rsi_mid:.1f})，关注反弹"
         else:
             result.rsi_status = RSIStatus.OVERSOLD
-            result.rsi_signal = f"⭐ RSI quá bán({rsi_mid:.1f}<30), cơ hội hồi phục lớn"
+            result.rsi_signal = f"⭐ RSI超卖({rsi_mid:.1f}<30)，反弹机会大"
 
     def _generate_signal(self, result: TrendAnalysisResult) -> None:
         """
@@ -611,9 +611,9 @@ class StockTrendAnalyzer:
         score += trend_score
 
         if result.trend_status in [TrendStatus.STRONG_BULL, TrendStatus.BULL]:
-            reasons.append(f"✅ {result.trend_status.value}, thuận xu hướng để mua lên")
+            reasons.append(f"✅ {result.trend_status.value}，顺势做多")
         elif result.trend_status in [TrendStatus.BEAR, TrendStatus.STRONG_BEAR]:
-            risks.append(f"⚠️ {result.trend_status.value}, không nên mua lên")
+            risks.append(f"⚠️ {result.trend_status.value}，不宜做多")
 
         # === 乖离率评分（20分，强势趋势补偿）===
         bias = result.bias_ma5
@@ -634,33 +634,33 @@ class StockTrendAnalyzer:
             # Price below MA5 (pullback)
             if bias > -3:
                 score += 20
-                reasons.append(f"✅ Giá hơi thấp hơn MA5({bias:.1f}%), điểm mua khi giá lùi về")
+                reasons.append(f"✅ 价格略低于MA5({bias:.1f}%)，回踩买点")
             elif bias > -5:
                 score += 16
-                reasons.append(f"✅ Giá lùi về MA5({bias:.1f}%), quan sát hỗ trợ")
+                reasons.append(f"✅ 价格回踩MA5({bias:.1f}%)，观察支撑")
             else:
                 score += 8
-                risks.append(f"⚠️ Độ lệch quá lớn({bias:.1f}%), có thể thủng hỗ trợ")
+                risks.append(f"⚠️ 乖离率过大({bias:.1f}%)，可能破位")
         elif bias < 2:
             score += 18
-            reasons.append(f"✅ Giá bám sát MA5({bias:.1f}%), thời điểm tham gia tốt")
+            reasons.append(f"✅ 价格贴近MA5({bias:.1f}%)，介入好时机")
         elif bias < base_threshold:
             score += 14
-            reasons.append(f"⚡ Giá hơi cao hơn MA5({bias:.1f}%), có thể tham gia với tỷ trọng nhỏ")
+            reasons.append(f"⚡ 价格略高于MA5({bias:.1f}%)，可小仓介入")
         elif bias > effective_threshold:
             score += 4
             risks.append(
-                f"❌ Độ lệch quá cao({bias:.1f}%>{effective_threshold:.1f}%), tuyệt đối không mua đuổi!"
+                f"❌ 乖离率过高({bias:.1f}%>{effective_threshold:.1f}%)，严禁追高！"
             )
         elif bias > base_threshold and is_strong_trend:
             score += 10
             reasons.append(
-                f"⚡ Trong xu hướng mạnh độ lệch hơi cao({bias:.1f}%), có thể bám theo với tỷ trọng nhẹ"
+                f"⚡ 强势趋势中乖离率偏高({bias:.1f}%)，可轻仓追踪"
             )
         else:
             score += 4
             risks.append(
-                f"❌ Độ lệch quá cao({bias:.1f}%>{base_threshold:.1f}%), tuyệt đối không mua đuổi!"
+                f"❌ 乖离率过高({bias:.1f}%>{base_threshold:.1f}%)，严禁追高！"
             )
 
         # === 量能评分（15分）===
@@ -675,17 +675,17 @@ class StockTrendAnalyzer:
         score += vol_score
 
         if result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
-            reasons.append("✅ Điều chỉnh kèm khối lượng thấp, dòng tiền lớn rũ hàng")
+            reasons.append("✅ 缩量回调，主力洗盘")
         elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
-            risks.append("⚠️ Giảm kèm khối lượng lớn, chú ý rủi ro")
+            risks.append("⚠️ 放量下跌，注意风险")
 
         # === 支撑评分（10分）===
         if result.support_ma5:
             score += 5
-            reasons.append("✅ MA5 hỗ trợ hiệu quả")
+            reasons.append("✅ MA5支撑有效")
         if result.support_ma10:
             score += 5
-            reasons.append("✅ MA10 hỗ trợ hiệu quả")
+            reasons.append("✅ MA10支撑有效")
 
         # === MACD 评分（15分）===
         macd_scores = {
@@ -755,47 +755,47 @@ class StockTrendAnalyzer:
             格式化的分析文本
         """
         lines = [
-            f"=== {result.code} Phân tích xu hướng ===",
+            f"=== {result.code} 趋势分析 ===",
             f"",
-            f"📊 Nhận định xu hướng: {result.trend_status.value}",
-            f"   Sắp xếp đường MA: {result.ma_alignment}",
-            f"   Độ mạnh xu hướng: {result.trend_strength}/100",
+            f"📊 趋势判断: {result.trend_status.value}",
+            f"   均线排列: {result.ma_alignment}",
+            f"   趋势强度: {result.trend_strength}/100",
             f"",
-            f"📈 Dữ liệu đường MA:",
-            f"   Giá hiện tại: {result.current_price:.2f}",
-            f"   MA5:  {result.ma5:.2f} (độ lệch {result.bias_ma5:+.2f}%)",
-            f"   MA10: {result.ma10:.2f} (độ lệch {result.bias_ma10:+.2f}%)",
-            f"   MA20: {result.ma20:.2f} (độ lệch {result.bias_ma20:+.2f}%)",
+            f"📈 均线数据:",
+            f"   现价: {result.current_price:.2f}",
+            f"   MA5:  {result.ma5:.2f} (乖离 {result.bias_ma5:+.2f}%)",
+            f"   MA10: {result.ma10:.2f} (乖离 {result.bias_ma10:+.2f}%)",
+            f"   MA20: {result.ma20:.2f} (乖离 {result.bias_ma20:+.2f}%)",
             f"",
-            f"📊 Phân tích khối lượng: {result.volume_status.value}",
-            f"   Tỷ lệ khối lượng(vs 5 ngày): {result.volume_ratio_5d:.2f}",
-            f"   Xu hướng khối lượng: {result.volume_trend}",
+            f"📊 量能分析: {result.volume_status.value}",
+            f"   量比(vs5日): {result.volume_ratio_5d:.2f}",
+            f"   量能趋势: {result.volume_trend}",
             f"",
-            f"📈 Chỉ báo MACD: {result.macd_status.value}",
+            f"📈 MACD指标: {result.macd_status.value}",
             f"   DIF: {result.macd_dif:.4f}",
             f"   DEA: {result.macd_dea:.4f}",
             f"   MACD: {result.macd_bar:.4f}",
-            f"   Tín hiệu: {result.macd_signal}",
+            f"   信号: {result.macd_signal}",
             f"",
-            f"📊 Chỉ báo RSI: {result.rsi_status.value}",
+            f"📊 RSI指标: {result.rsi_status.value}",
             f"   RSI(6): {result.rsi_6:.1f}",
             f"   RSI(12): {result.rsi_12:.1f}",
             f"   RSI(24): {result.rsi_24:.1f}",
-            f"   Tín hiệu: {result.rsi_signal}",
+            f"   信号: {result.rsi_signal}",
             f"",
-            f"🎯 Khuyến nghị hành động: {result.buy_signal.value}",
-            f"   Điểm tổng hợp: {result.signal_score}/100",
+            f"🎯 操作建议: {result.buy_signal.value}",
+            f"   综合评分: {result.signal_score}/100",
         ]
 
         if result.signal_reasons:
             lines.append(f"")
-            lines.append(f"✅ Lý do mua:")
+            lines.append(f"✅ 买入理由:")
             for reason in result.signal_reasons:
                 lines.append(f"   {reason}")
 
         if result.risk_factors:
             lines.append(f"")
-            lines.append(f"⚠️ Yếu tố rủi ro:")
+            lines.append(f"⚠️ 风险因素:")
             for risk in result.risk_factors:
                 lines.append(f"   {risk}")
 

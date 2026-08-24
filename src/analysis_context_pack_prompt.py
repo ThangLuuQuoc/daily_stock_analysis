@@ -8,12 +8,12 @@ from typing import Any, Dict, Iterable, List, Optional
 
 
 BLOCK_LABELS_ZH = {
-    "quote": "giá khớp",
-    "daily_bars": "nến ngày",
-    "technical": "kỹ thuật",
-    "chip": "phân bổ cổ phiếu",
-    "fundamentals": "cơ bản",
-    "news": "tin tức",
+    "quote": "行情",
+    "daily_bars": "日线",
+    "technical": "技术",
+    "chip": "筹码",
+    "fundamentals": "基本面",
+    "news": "新闻",
 }
 
 BLOCK_LABELS_EN = {
@@ -26,14 +26,14 @@ BLOCK_LABELS_EN = {
 }
 
 STATUS_LABELS_ZH = {
-    "available": "có sẵn",
-    "missing": "thiếu",
-    "not_supported": "không hỗ trợ",
-    "fallback": "dự phòng",
-    "stale": "cũ",
-    "estimated": "ước tính",
-    "partial": "có một phần",
-    "fetch_failed": "lấy dữ liệu thất bại",
+    "available": "可用",
+    "missing": "缺失",
+    "not_supported": "不支持",
+    "fallback": "降级",
+    "stale": "过期",
+    "estimated": "估算",
+    "partial": "部分可用",
+    "fetch_failed": "抓取失败",
 }
 
 STATUS_LABELS_EN = {
@@ -48,10 +48,10 @@ STATUS_LABELS_EN = {
 }
 
 QUALITY_LEVEL_LABELS_ZH = {
-    "good": "tốt",
-    "usable": "dùng được",
-    "limited": "hạn chế",
-    "poor": "kém",
+    "good": "良好",
+    "usable": "可用",
+    "limited": "受限",
+    "poor": "较差",
 }
 
 QUALITY_LEVEL_LABELS_EN = {
@@ -101,7 +101,11 @@ SENSITIVE_MARKERS = (
 
 
 def normalize_analysis_context_pack_language(report_language: str = "zh") -> str:
-    return "en" if str(report_language or "").lower() == "en" else "zh"
+    # fork VN: `vi` dung nhan cau truc tieng Anh; mo hinh duoc rang buoc xuat
+    # tieng Viet qua output-language directive (analyzer.py). Day dung pattern
+    # upstream ap dung cho `ko` o v3.25.0 — khoi nay la INPUT mo ta trang thai
+    # du lieu, khong phai text nguoi dung doc, nen khong can dich.
+    return "en" if str(report_language or "").lower() in {"en", "vi"} else "zh"
 
 
 def get_analysis_context_pack_block_labels(report_language: str = "zh") -> Dict[str, str]:
@@ -163,18 +167,18 @@ _pack_to_dict = analysis_context_pack_to_dict
 
 
 def _format_zh(payload: Dict[str, Any]) -> str:
-    lines = ["", "## Tóm tắt gói ngữ cảnh phân tích"]
+    lines = ["", "## 分析上下文包摘要"]
     lines.extend(_subject_lines(payload, lang="zh"))
     block_lines = _block_lines(payload, lang="zh")
     if block_lines:
-        lines.append("- Trạng thái khối dữ liệu:")
+        lines.append("- 数据块状态：")
         lines.extend(f"  - {line}" for line in block_lines)
     metadata_lines = _metadata_lines(payload, lang="zh")
     if metadata_lines:
         lines.extend(metadata_lines)
     warnings = _list_strings(_nested(payload, "data_quality", "warnings"))
     if warnings:
-        lines.append(f"- Lưu ý chất lượng dữ liệu: {_join_text(warnings, lang='zh')}")
+        lines.append(f"- 数据质量提醒：{_join_text(warnings, lang='zh')}")
     lines.extend(_data_limitation_lines(payload, lang="zh"))
     return "\n".join(lines) + "\n"
 
@@ -217,17 +221,17 @@ def _subject_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
             line += f"; {', '.join(details)}"
         return [line]
 
-    label = code or "mã chưa xác định"
+    label = code or "未知标的"
     if name:
         label += f"（{name}）"
-    line = f"- Mã: {label}"
+    line = f"- 标的：{label}"
     details = []
     if market:
-        details.append(f"thị trường={market}")
+        details.append(f"市场={market}")
     if version:
         details.append(f"pack_version={version}")
     if details:
-        line += f"; {', '.join(details)}"
+        line += f"；{'，'.join(details)}"
     return [line]
 
 
@@ -257,7 +261,7 @@ def _block_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
 
         warnings = _list_strings(block.get("warnings"))
         if warnings:
-            warning_label = "warnings" if lang == "en" else "cảnh báo"
+            warning_label = "warnings" if lang == "en" else "告警"
             parts.append(f"{warning_label}={_join_text(warnings, lang=lang)}")
 
         reasons = _item_missing_reasons(block.get("items"))
@@ -279,12 +283,12 @@ def _metadata_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     return [
         f"- News result count: {news_count}"
         if lang == "en"
-        else f"- Số kết quả tin tức: {news_count}"
+        else f"- 新闻结果数：{news_count}"
     ]
 
 
 def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
-    lines = ["", "## Data Limitations" if lang == "en" else "## Giới hạn dữ liệu"]
+    lines = ["", "## Data Limitations" if lang == "en" else "## 数据限制"]
     data_quality = payload.get("data_quality")
     if not isinstance(data_quality, Mapping):
         data_quality = {}
@@ -298,7 +302,7 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
             if level_text:
                 line += f" ({level_text})"
         else:
-            line = f"- Điểm chất lượng dữ liệu: {score}/100"
+            line = f"- 数据质量评分：{score}/100"
             if level_text:
                 line += f"（{level_text}）"
         lines.append(line)
@@ -308,7 +312,7 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
         lang=lang,
     )
     if limitations:
-        label = "Known limitations" if lang == "en" else "Giới hạn đã biết"
+        label = "Known limitations" if lang == "en" else "已知限制"
         separator = ": " if lang == "en" else "："
         lines.append(f"- {label}{separator}{_join_text(limitations, lang=lang)}")
 
@@ -323,8 +327,8 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
             )
         else:
             lines.append(
-                "- Quy tắc độ tin cậy: khi quote, daily_bars hoặc technical ở trạng thái stale, fallback, missing, "
-                "fetch_failed, partial hoặc estimated, thì confidence_level trong JSON cuối cùng không được là Cao."
+                "- 置信度规则：当 quote、daily_bars 或 technical 为 stale、fallback、missing、"
+                "fetch_failed、partial 或 estimated 时，最终 JSON 的 confidence_level 不得为高。"
             )
 
     if lang == "en":
@@ -339,12 +343,11 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
         )
     else:
         lines.append(
-            "- Quy tắc phân tích: khối dữ liệu phụ trợ bị thiếu chỉ giới hạn đoạn phân tích tương ứng, "
-            "không được diễn giải bản thân việc thiếu dữ liệu là tín hiệu tốt hay xấu."
+            "- 分析规则：辅助数据块缺失只限制对应分析段落，不要把缺失本身解释为利好或利空。"
         )
         lines.append(
-            "- Quy tắc an toàn: chỉ sử dụng status, source, warnings và missing_reason trong bản tóm tắt này; "
-            "không nhắc lại raw payload, nội dung tin tức, giá trị xu hướng gốc, secret, token hoặc webhook."
+            "- 安全规则：只使用本摘要中的 status、source、warnings 和 missing_reason；"
+            "不要复述 raw payload、新闻正文、趋势原始值、secret、token 或 webhook。"
         )
     return lines
 
@@ -414,17 +417,17 @@ def _phase_data_quality_constraint_lines(payload: Dict[str, Any], *, lang: str) 
 
     if phase in INTRADAY_MARKET_PHASES:
         return [
-            "- Quy tắc phiên/dữ liệu: nhận định trong phiên bị giới hạn bởi chất lượng dữ liệu giá khớp, nến ngày "
-            "hoặc kỹ thuật; phải nêu rõ các giới hạn này trước khi đưa ra kết luận giao dịch ngắn hạn."
+            "- 阶段数据规则：盘中判断受实时行情、日线或技术数据质量限制；"
+            "给出短线结论前必须说明这些限制。"
         ]
     if phase == "premarket":
         return [
-            "- Quy tắc phiên/dữ liệu: kế hoạch mở cửa bị giới hạn bởi độ mới của dữ liệu hoặc trạng thái dự phòng; "
-            "không được mô tả dữ liệu giá khớp đã suy giảm như thể diễn biến giá hôm nay đã xảy ra."
+            "- 阶段数据规则：开盘计划受数据新鲜度或降级状态限制；"
+            "不得把降级行情描述成今日走势已经发生。"
         ]
     if phase in CONSERVATIVE_MARKET_PHASES:
         return [
-            "- Quy tắc phiên/dữ liệu: chỉ sử dụng dữ liệu hiện có một cách thận trọng, không được bịa thêm các diễn biến trong phiên không tồn tại."
+            "- 阶段数据规则：只能保守使用当前可用数据，不得补全不存在的盘中事实。"
         ]
     return []
 

@@ -3570,6 +3570,12 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
                 context['trend_analysis'],
                 volume_change_ratio=context.get('volume_change_ratio'),
             )
+            # fork VN: dich chuoi hien thi o BIEN dung prompt. Khong dich trong
+            # stock_analyzer.py vi _infer_trend_direction() parse cac chuoi do —
+            # dich tai cho tung lam STRONG_BULL/STRONG_BEAR ra "neutral".
+            # Xem src/trend_text_vi.py.
+            from src.trend_text_vi import localize_trend_for_prompt
+            trend = localize_trend_for_prompt(trend, report_language)
             consistency_notes = trend.get('prompt_consistency_notes', [])
             if use_legacy_default_prompt:
                 bias_warning = "🚨 超过5%，严禁追高！" if trend.get('bias_ma5', 0) > 5 else "✅ 安全范围"
