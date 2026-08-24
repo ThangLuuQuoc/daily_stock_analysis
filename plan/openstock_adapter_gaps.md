@@ -155,6 +155,44 @@ gian. Làm khi nào prompt thực sự cần.
 
 ---
 
+## 4c. Trạng thái dữ liệu thật (2026-08-24, sau khi chạy update-to-today.sh)
+
+Đo trực tiếp trên DB (docker `stock-postgres`), không suy đoán.
+
+| Bảng | Mới nhất | Ghi chú |
+|---|---|---|
+| `stock_prices` (cổ phiếu) | 2026-08-24 | 7 phiên nạp thêm: 08-14, 17, 18, 19, 20, 21, 24 (cuối tuần đúng là không có) |
+| `valuation_timeseries` | 2026-08-24 | +6.252 dòng |
+| `technical_indicators` | 2026-08-24 | +12.777 dòng |
+| `signal_events` | 2026-08-24 | +1.591 dòng |
+| `quotes` | 2026-08-24 10:38 | snapshot từ daily bar |
+| `fundamental_snapshots` | 2026-06-30 | **đúng** — Q2/2026, quý sau chưa công bố. Không cần `FULL=1` cho tới mùa BCTC Q3 (~tháng 10) |
+| `financial_statements` | — | 152.873 dòng, đã đầy |
+
+### ⚠️ `VN100` — dữ liệu quá mỏng để phân tích
+
+`syncIndexWorker.INDICES` khai báo `VN100`, nhưng nguồn gần như không trả dữ liệu:
+
+| Chỉ số | Số dòng | Khoảng |
+|---|---|---|
+| VNINDEX / HNXINDEX / UPCOMINDEX | 1.558 | 2020-06-01 → 2026-08-24 |
+| VN30 | 1.557 | 2020-06-01 → 2026-08-24 |
+| **VN100** | **11** | **2026-05-29 → 2026-08-24** |
+
+Trong đợt update này VN100 chỉ nạp được **1/7 phiên**, các chỉ số khác đủ 7.
+
+**Hệ quả cho adapter:** `StockTrendAnalyzer` bail out khi `len(df) < 20`
+(`src/stock_analyzer.py`), nên `VN100` được `VN_INDEX_MAPPING` nhận là mã hợp lệ
+nhưng **không phân tích được** — cùng loại bẫy như `HNX30` trước đây (mã hợp lệ,
+query rỗng), chỉ nhẹ hơn.
+
+Quyết định: **giữ** `VN100` trong mapping (nó là chỉ số thật, đang được sync, dữ
+liệu sẽ dày lên theo ngày) nhưng ghi lại ở đây để không ai coi nó tương đương
+VNINDEX/VN30. Nếu cần dùng VN100 sớm thì phải backfill lịch sử từ nguồn khác —
+đây là gap **thu thập dữ liệu** bên OpenStock, không phải gap adapter.
+
+---
+
 ## 5. Lưu ý đơn vị (đã xử lý trong adapter)
 
 - Giá `open/high/low/close`: **nghìn VND** (71 == 71.000 VND). Lịch sử & realtime cùng đơn vị.
