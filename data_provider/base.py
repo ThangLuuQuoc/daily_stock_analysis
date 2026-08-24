@@ -3010,6 +3010,10 @@ class DataFetcherManager:
         stock_code = normalize_stock_code(stock_code)
         market = _market_tag(stock_code)
         is_etf = _is_etf_code(stock_code)
+        if market == "vn":
+            # 越南标的走 OpenStock；逻辑放在 fork 自己的文件里，此处只留 hook。
+            from .vn_fundamental_context import build_vn_fundamental_context
+            return build_vn_fundamental_context(self, stock_code, budget_seconds)
         if market in {"us", "hk", "jp", "kr"}:
             return self._build_offshore_fundamental_context(
                 stock_code,
@@ -3301,6 +3305,10 @@ class DataFetcherManager:
         config = get_config()
         stock_code = normalize_stock_code(stock_code)
         timeout = float(budget_seconds if budget_seconds is not None else config.fundamental_fetch_timeout_seconds)
+        if _market_tag(stock_code) == "vn":
+            # 越南口径：外资净额。逻辑在 fork 自己的文件里，此处只留 hook。
+            from .vn_fundamental_context import build_vn_capital_flow_block
+            return build_vn_capital_flow_block(self, stock_code, timeout)
         if _market_tag(stock_code) != "cn" or _is_etf_code(stock_code):
             return self._build_fundamental_block(
                 "not_supported",

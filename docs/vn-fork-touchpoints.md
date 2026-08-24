@@ -43,12 +43,23 @@ Cột **Loại**:
 | `data_provider/base.py` | `_is_vn_market()` (~193) | HOOK | nhận diện mã VN, gate sau `openstock_enabled` | giữ, nhưng chuyển nguồn sự thật sang symbol universe (Phase 2b) |
 | `data_provider/base.py` | `_market_tag()` (~255) | HOOK | trả `"vn"` | 1 dòng, dễ re-apply |
 | `data_provider/base.py` | `_DAILY_MARKET_FETCHER_SUPPORT` (~630) | HOOK | `"OpenStockFetcher": {"vn"}` | 1 dòng |
-| `data_provider/base.py` | `get_fundamental_context()` (~3011) | HOOK | route `market == "vn"` sang `vn_fundamental_context` | 3 dòng, đặt TRƯỚC nhánh `us/hk/jp/kr` |
-| `data_provider/base.py` | guard `capital_flow` (~3304) | HOOK | `!= "cn"` → `not in {"cn","vn"}` | 1 dòng |
+| `data_provider/base.py` | `get_fundamental_context()` (~3013) | HOOK ✅ | route `market == "vn"` → `build_vn_fundamental_context` | 3 dòng, đặt TRƯỚC nhánh `us/hk/jp/kr` |
+| `data_provider/base.py` | `get_capital_flow_context()` (~3312) | HOOK ✅ | route `"vn"` → `build_vn_capital_flow_block` (Agent tool gọi trực tiếp entry này) | 3 dòng, đặt TRƯỚC guard `!= "cn"` |
 | `data_provider/base.py` | `_init_default_fetchers()` (~1152) | **REWRITE** | tolerant import khi thiếu efinance/akshare | ❌ **cần bỏ** — Phase 2a |
 | `data_provider/base.py` | daily routing (~1292), quote routing (~1730) | BRANCH | `is_vn` ưu tiên trước `is_us` | gộp về `_market_tag` (Phase 2b) |
 | `data_provider/__init__.py` | `_optional_import()` | **REWRITE** | như trên | ❌ **cần bỏ** — Phase 2a |
 | `data_provider/realtime_types.py` | 1 dòng | ? | cần rà lại xem còn cần không | — |
+
+### 1.1b Basic-fundamental VN (Phase 1 — đã xong)
+
+File mới `data_provider/vn_fundamental_context.py` giữ toàn bộ logic; `base.py` chỉ có
+2 hook × 3 dòng ở trên. Trước Phase 1, `OpenStockFundamentalAdapter` là **dead code**:
+mã VN rơi vào nhánh A-share nên gọi AkShare với `"FPT"`, và `capital_flow` bị guard
+`_market_tag != "cn"` chặn → tăng trưởng doanh thu/LNST, biên gộp, dòng tiền HĐKD và
+**dòng tiền khối ngoại** không tới được LLM.
+
+Test khoá lại: `tests/test_vn_fundamental_context.py` (8 test) assert trên **context
+pack pipeline thật dùng**, không phải trên adapter — tháo hook là test đỏ.
 
 ### 1.2 Config
 
