@@ -58,8 +58,10 @@ if [[ "${1:-}" == "--merge-test" ]]; then
     # Bat buoc phai co merge base. Neu 'vendor' la commit orphan (khong noi vao
     # history that cua upstream) thi git tu choi merge va ta se dem ra 0 xung dot
     # => ket luan SAI. Kiem tra truoc.
-    if ! git merge-base --quiet main "$target" >/dev/null 2>&1 \
-       || [[ -z "$(git merge-base main "$target" 2>/dev/null)" ]]; then
+    # LUU Y: `git merge-base` (khac `--is-ancestor`) KHONG co flag --quiet;
+    # truyen no vao la loi cu phap (exit 129), bi hieu nham thanh "khong co
+    # merge base" - dung chinh loi nay tung lam script bao SAI "0 xung dot".
+    if [[ -z "$(git merge-base main "$target" 2>/dev/null)" ]]; then
         echo "LOI: khong co merge base giua HEAD va '$target'."
         echo "     'vendor' phai tro vao COMMIT THAT cua upstream, khong phai commit orphan"
         echo "     dung tu tarball. Chay: git fetch upstream && git log --oneline vendor"
