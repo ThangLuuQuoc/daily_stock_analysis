@@ -37,10 +37,10 @@ _INTRADAY_BUCKET_PHASES = {"intraday", "lunch_break", "closing_auction"}
 _SUPPORTED_MANUAL_ANALYSIS_PHASES = {"premarket", "intraday", "postmarket"}
 _SUPPORTED_ANALYSIS_INTENTS = {"auto", *_SUPPORTED_MANUAL_ANALYSIS_PHASES}
 _PUBLIC_SOURCE_LABELS_ZH = {
-    "alert_trigger_market_context": "bối cảnh kích hoạt cảnh báo",
-    "analysis_history_snapshot": "ảnh chụp phân tích gần nhất",
-    "evaluator_snapshot": "ảnh chụp bộ đánh giá",
-    "legacy_text": "văn bản cũ",
+    "alert_trigger_market_context": "告警触发上下文",
+    "analysis_history_snapshot": "最近分析快照",
+    "evaluator_snapshot": "评估器快照",
+    "legacy_text": "历史文本",
 }
 _PUBLIC_SOURCE_LABELS_EN = {
     "alert_trigger_market_context": "alert trigger context",
@@ -49,13 +49,13 @@ _PUBLIC_SOURCE_LABELS_EN = {
     "legacy_text": "legacy text",
 }
 _MARKET_STATUS_PREFIX = {
-    "zh": "Trạng thái thị trường",
+    "zh": "市场状态",
     "en": "Market status",
 }
 _MARKET_LABELS_ZH = {
-    "cn": "A-share",
-    "hk": "Hồng Kông",
-    "us": "Mỹ",
+    "cn": "A股",
+    "hk": "港股",
+    "us": "美股",
 }
 _MARKET_LABELS_EN = {
     "cn": "A-shares",
@@ -63,13 +63,13 @@ _MARKET_LABELS_EN = {
     "us": "US",
 }
 _PHASE_LABELS_ZH = {
-    "premarket": "trước phiên",
-    "intraday": "trong phiên",
-    "lunch_break": "nghỉ trưa",
-    "closing_auction": "gần đóng cửa",
-    "postmarket": "sau phiên",
-    "non_trading": "ngày không giao dịch",
-    "unknown": "giai đoạn chưa rõ",
+    "premarket": "盘前",
+    "intraday": "盘中",
+    "lunch_break": "午间休市",
+    "closing_auction": "临近收盘",
+    "postmarket": "盘后",
+    "non_trading": "非交易日",
+    "unknown": "阶段未知",
 }
 _PHASE_LABELS_EN = {
     "premarket": "Pre-market",
@@ -80,6 +80,16 @@ _PHASE_LABELS_EN = {
     "non_trading": "Non-trading",
     "unknown": "Unknown phase",
 }
+
+
+# fork VN: bang nhan cho ngon ngu them ngoai tree (lang -> bang). Ngon ngu khong
+# co trong day van chay nhanh zh/en cua upstream nhu cu.
+# Bơm boi src/market_phase_summary_vi.py — xem docs/vn-fork-touchpoints.md.
+_EXTRA_PHASE_LABELS: Dict[str, Dict[str, str]] = {}
+_EXTRA_MARKET_LABELS: Dict[str, Dict[str, str]] = {}
+_EXTRA_SOURCE_LABELS: Dict[str, Dict[str, str]] = {}
+_EXTRA_STATUS_PREFIX: Dict[str, str] = {}
+_EXTRA_SEPARATOR: Dict[str, str] = {}
 
 
 def render_market_phase_summary(phase_context: Any) -> Optional[Dict[str, Any]]:
@@ -208,25 +218,25 @@ def format_public_phase_pack_excerpt(
             if phase_summary.get("is_partial_bar") is True:
                 lines.append("- partial-bar warning: intraday data may be incomplete")
         else:
-            parts = [f"Giai đoạn: {phase}"]
+            parts = [f"阶段：{phase}"]
             if market:
-                parts.append(f"Thị trường: {market}")
+                parts.append(f"市场：{market}")
             if trigger_source:
-                parts.append(f"Nguồn kích hoạt: {trigger_source}")
+                parts.append(f"触发来源：{trigger_source}")
             if source_label:
-                parts.append(f"Nguồn tóm tắt: {source_label}")
+                parts.append(f"摘要来源：{source_label}")
             lines.append("- " + " | ".join(parts))
             if phase_summary.get("is_partial_bar") is True:
-                lines.append("- Lưu ý dữ liệu trong phiên: cây nến hiện tại có thể chưa hoàn tất")
+                lines.append("- 盘中数据提示：当前 K 线可能未完结")
 
     quality = overview.get("data_quality") if isinstance(overview, Mapping) else None
     if isinstance(quality, Mapping):
         level = _safe_text(quality.get("level"))
         if level:
-            lines.append(f"- {'data quality' if lang == 'en' else 'chất lượng dữ liệu'}: {level}")
+            lines.append(f"- {'data quality' if lang == 'en' else '数据质量'}: {level}")
         limitations = _list_strings(quality.get("limitations"), limit=2)
         for item in limitations:
-            lines.append(f"- {'limitation' if lang == 'en' else 'hạn chế'}: {item}")
+            lines.append(f"- {'limitation' if lang == 'en' else '限制'}: {item}")
 
     return "\n".join(lines)
 
@@ -244,9 +254,18 @@ def format_public_market_status_line(
     if phase is None:
         return ""
 
-    lang = "en" if str(report_language or "").lower().startswith("en") else "zh"
-    phase_labels = _PHASE_LABELS_EN if lang == "en" else _PHASE_LABELS_ZH
-    market_labels = _MARKET_LABELS_EN if lang == "en" else _MARKET_LABELS_ZH
+    normalized = str(report_language or "").lower()
+    lang = "en" if normalized.startswith("en") else "zh"
+    # fork VN: ngon ngu dang ky ngoai tree duoc uu tien truoc khi rot ve zh/en.
+    extra = normalized if normalized in _EXTRA_PHASE_LABELS else None
+    phase_labels = (
+        _EXTRA_PHASE_LABELS[extra] if extra
+        else (_PHASE_LABELS_EN if lang == "en" else _PHASE_LABELS_ZH)
+    )
+    market_labels = (
+        _EXTRA_MARKET_LABELS.get(extra, {}) if extra
+        else (_MARKET_LABELS_EN if lang == "en" else _MARKET_LABELS_ZH)
+    )
     phase_label = phase_labels.get(phase, phase)
     market = _safe_text(phase_summary.get("market"))
     market_key = market.lower()
@@ -255,6 +274,8 @@ def format_public_market_status_line(
         value = f"{market_label} · {phase_label}"
     else:
         value = phase_label
+    if extra:
+        return f"{_EXTRA_STATUS_PREFIX[extra]}{_EXTRA_SEPARATOR.get(extra, ': ')}{value}"
     separator = ": " if lang == "en" else "："
     return f"{_MARKET_STATUS_PREFIX[lang]}{separator}{value}"
 
@@ -280,6 +301,8 @@ def _source_label(value: Any, lang: str) -> Optional[str]:
     source = _safe_text(value)
     if not source:
         return None
+    if lang in _EXTRA_SOURCE_LABELS:  # fork VN
+        return _EXTRA_SOURCE_LABELS[lang].get(source, source)
     labels = _PUBLIC_SOURCE_LABELS_EN if lang == "en" else _PUBLIC_SOURCE_LABELS_ZH
     return labels.get(source, source)
 
@@ -315,3 +338,9 @@ def _list_strings(value: Any, *, limit: int = 5) -> List[str]:
         if text and text not in result:
             result.append(text)
     return result[:limit]
+
+
+# fork VN: dang ky bang nhan tieng Viet.
+from src.market_phase_summary_vi import register as _register_vi  # noqa: E402
+
+_register_vi()
