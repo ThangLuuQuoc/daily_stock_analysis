@@ -26,6 +26,7 @@ from api.v1.endpoints import (
     stocks,
     system_config,
     usage,
+    vn_search,  # 越南市场股票搜索（OpenStock），见 docs/vn-fork-touchpoints.md
 )
 
 # 创建 v1 版本主路由。
@@ -58,6 +59,14 @@ router.include_router(
 
 router.include_router(
     stocks.router,
+    prefix="/stocks",
+    tags=["Stocks"]
+)
+
+router.include_router(
+    # 同一 prefix 下挂载第二个 router：保持 /api/v1/stocks/search 路径不变，
+    # 同时把这个 endpoint 放在 fork 自己的文件里，不动 stocks.py。
+    vn_search.router,
     prefix="/stocks",
     tags=["Stocks"]
 )

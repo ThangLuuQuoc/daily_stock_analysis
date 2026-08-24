@@ -40,14 +40,14 @@ Cột **Loại**:
 
 | File | Vị trí | Loại | Lý do | Re-apply |
 |---|---|---|---|---|
-| `data_provider/base.py` | `_is_vn_market()` (~193) | HOOK | nhận diện mã VN, gate sau `openstock_enabled` | giữ, nhưng chuyển nguồn sự thật sang symbol universe (Phase 2b) |
+| `data_provider/base.py` | `_is_vn_market()` (~193) | HOOK | nhận diện mã VN, gate sau `openstock_enabled` | giữ; nguồn sự thật vẫn là regex (xem §Phase 2b bên dưới — không build symbol-universe vì OpenStock chưa có endpoint liệt kê mã) |
 | `data_provider/base.py` | `_market_tag()` (~255) | HOOK | trả `"vn"` | 1 dòng, dễ re-apply |
 | `data_provider/base.py` | `_DAILY_MARKET_FETCHER_SUPPORT` (~630) | HOOK | `"OpenStockFetcher": {"vn"}` | 1 dòng |
 | `data_provider/base.py` | `get_fundamental_context()` (~3013) | HOOK ✅ | route `market == "vn"` → `build_vn_fundamental_context` | 3 dòng, đặt TRƯỚC nhánh `us/hk/jp/kr` |
 | `data_provider/base.py` | `get_capital_flow_context()` (~3312) | HOOK ✅ | route `"vn"` → `build_vn_capital_flow_block` (Agent tool gọi trực tiếp entry này) | 3 dòng, đặt TRƯỚC guard `!= "cn"` |
-| `data_provider/base.py` | `_init_default_fetchers()` (~1152) | **REWRITE** | tolerant import khi thiếu efinance/akshare | ❌ **cần bỏ** — Phase 2a |
-| `data_provider/base.py` | daily routing (~1292), quote routing (~1730) | BRANCH | `is_vn` ưu tiên trước `is_us` | gộp về `_market_tag` (Phase 2b) |
-| `data_provider/__init__.py` | `_optional_import()` | **REWRITE** | như trên | ❌ **cần bỏ** — Phase 2a |
+| `data_provider/base.py` | `_init_default_fetchers()` | HOOK ✅ **(Phase 2a xong)** | **Đã revert về vendor nguyên bản** + 1 khối 6 dòng thêm OpenStockFetcher, cùng style với khối Tushare có sẵn. Trước đây REWRITE toàn bộ hàm bằng tolerant-import — **đã kiểm chứng bằng git worktree của `vendor`: giả định "thiếu efinance/akshare thì crash" là SAI**, mọi fetcher class lazy-import thư viện bên thứ 3 bên trong method chứ không phải module/class level, nên hard-import của vendor chạy tốt dù thiếu hết 9 lib | 6 dòng, đặt sau `optional_fetchers: List[...] = []` |
+| `data_provider/base.py` | daily routing (~1278), quote routing (~1710) | HOOK ✅ **(Phase 2b xong)** | Đã gộp `is_vn/is_us/is_hk/is_jp/is_kr` về `market = _market_tag(stock_code)` rồi suy ra từng boolean từ `market == "..."` — chứng minh tương đương vì `_market_tag` dùng đúng các hàm `_is_us_market`/`_is_hk_market`/... theo đúng thứ tự ưu tiên. Bỏ luôn 1 import không còn dùng (`is_us_stock_code`, `_is_us_code`) | đã ở dạng tối giản, không cần re-apply thêm |
+| `data_provider/__init__.py` | toàn file | HOOK ✅ **(Phase 2a xong)** | **Đã revert về vendor nguyên bản** + 3 dòng import OpenStock (`OpenStockFetcher`, `OpenStockFundamentalAdapter`, `openstock_symbols`) + mở rộng `__all__`. Trước đây rewrite toàn bộ bằng `_optional_import()` loader — không cần thiết (lý do như trên) | 3 dòng import + entries trong `__all__` |
 | `data_provider/realtime_types.py` | 1 dòng | ? | cần rà lại xem còn cần không | — |
 
 ### 1.1b Basic-fundamental VN (Phase 1 — đã xong)
@@ -88,8 +88,10 @@ pack pipeline thật dùng**, không phải trên adapter — tháo hook là tes
 
 | File | Loại | Lý do | Re-apply |
 |---|---|---|---|
-| `api/v1/endpoints/stocks.py` | HOOK | endpoint `/search` gọi OpenStock | ⚠️ nên tách sang `api/v1/endpoints/vn_search.py` (Phase 2c) |
-| `api/v1/endpoints/stocks.py` | OVERWRITE | message lỗi TQ → English | gộp vào lớp localize thay vì sửa literal |
+| `api/v1/endpoints/vn_search.py` (mới) | HOOK ✅ **(Phase 2c xong)** | endpoint `/search` gọi OpenStock — đã tách khỏi `stocks.py` sang file riêng của fork | file độc lập, không đụng `stocks.py` nữa |
+| `api/v1/router.py` | HOOK ✅ **(Phase 2c — file mới bị chạm)** | thêm import `vn_search` + `include_router(vn_search.router, prefix="/stocks", ...)` — mount CHUNG prefix `/stocks` với `stocks.router` để giữ nguyên URL `/api/v1/stocks/search` (frontend `apps/dsa-web/src/api/stocks.ts` không cần đổi). Test khoá lại: `tests/test_vn_search_endpoint.py::test_duong_dan_van_la_stocks_search` | 5 dòng (1 import + 1 khối `include_router`) |
+| `api/v1/endpoints/stocks.py` | — ✅ **(Phase 2c xong)** | endpoint `/search` đã dọn sạch khỏi file này, quay lại gần như nguyên bản upstream | không còn gì để re-apply cho mục này |
+| `api/v1/endpoints/stocks.py` | OVERWRITE | message lỗi TQ → English | gộp vào lớp localize thay vì sửa literal (Phase 3) |
 | `api/middlewares/error_handler.py` | OVERWRITE | như trên | như trên |
 | `api/v1/endpoints/analysis.py` | OVERWRITE | như trên | như trên |
 
@@ -156,10 +158,35 @@ hoa** → mã VN 3 chữ là tập con. Mỗi module dưới đây là một ch�
 
 ## 3. Ngân sách bề mặt fork
 
-| Chỉ số | Hiện tại | Mục tiêu sau Phase 2 | Mục tiêu sau Phase 3 |
+| Chỉ số | Trước Phase 2 | Sau Phase 2a+2b+2c | Mục tiêu sau Phase 3 |
 |---|---|---|---|
-| File upstream bị sửa | **66** | ≤ 45 | ≤ 30 |
-| File xung đột khi merge v3.31.0 | **28** | ≤ 18 | ≤ 10 |
-| Hunk xung đột | **98** | ≤ 60 | ≤ 25 |
+| File upstream bị sửa | 66 | **67**¹ | ≤ 30 |
+| File xung đột khi merge v3.31.0 | 28 | _(đo lại trước khi merge thật)_ | ≤ 10 |
+| Hunk xung đột | 98 | _(đo lại trước khi merge thật)_ | ≤ 25 |
+
+¹ Tăng 1 vì Phase 2c thêm `api/v1/router.py` vào danh sách file bị sửa (5 dòng, HOOK
+thuần) để tách `/search` ra khỏi `stocks.py`. Đổi lại: `data_provider/base.py` và
+`data_provider/__init__.py` giảm từ REWRITE (6+ hunk, hàng chục dòng logic viết lại)
+xuống còn thuần HOOK/BRANCH (mỗi hunk vài dòng) — chất lượng diff tốt hơn nhiều dù số
+đếm file không giảm. Đo bằng `--merge-test` sẽ phản ánh đúng việc này hơn đếm file.
 
 `scripts/check-fork-surface.sh` fail khi vượt trần đặt trong file đó.
+
+### Việc đã KHÔNG làm trong Phase 2b — và lý do
+
+Plan gốc đề xuất "openstock_symbols.py thành single source of truth, dữ liệu lấy từ
+OpenStock universe, cache TTL". **Không triển khai** vì OpenStock hiện chỉ có
+`GET /search?q=` (cần query, không có endpoint liệt kê toàn bộ mã) — xác nhận lại
+trong `plan/daily_stock_analysis_adapter.md` và `plan/openstock_adapter_gaps.md`,
+không thấy endpoint nào phù hợp. Build một cơ chế cache dựa trên network call tới
+endpoint không tồn tại là suy đoán, không kiểm chứng được.
+
+Tương tự, các false-negative đã biết (ETF `FUEVFVND`/`E1VFVN30`, hợp đồng phái sinh
+`VN30F2409`) **không sửa bằng regex đoán mò** — không có cách xác minh danh sách mã ETF
+VN hiện hành từ môi trường này, và một regex sai tạo cảm giác an toàn giả còn tệ hơn
+giữ nguyên hạn chế đã biết. Việc đã làm thay vào đó: **gộp toàn bộ điểm gọi
+`_is_vn_market`/`is_us`/... về một hàm `_market_tag()` duy nhất** — khi có endpoint
+universe thật (cần thêm vào `openstock_adapter_gaps.md` mục C như một backend gap),
+chỉ cần sửa `_is_vn_market()` một chỗ, mọi call site tự động ăn theo.
+
+Test khoá lại giới hạn đã biết: `tests/test_vn_fundamental_context.py::test_flag_off_thi_ma_3_chu_bi_coi_la_my___han_che_da_biet`.

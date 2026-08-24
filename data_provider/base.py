@@ -1152,74 +1152,54 @@ class DataFetcherManager:
           4. YfinanceFetcher (Priority 4)
         """
         from src.config import get_config
+        from .efinance_fetcher import EfinanceFetcher
+        from .tencent_fetcher import TencentFetcher
+        from .akshare_fetcher import AkshareFetcher
+        from .tushare_fetcher import TushareFetcher
+        from .pytdx_fetcher import PytdxFetcher
+        from .baostock_fetcher import BaostockFetcher
+        from .yfinance_fetcher import YfinanceFetcher
+        from .longbridge_fetcher import LongbridgeFetcher
         config = get_config()
-
-        def _safe_instantiate(module_name: str, class_name: str):
-            """容错地实例化某个数据源；缺少第三方依赖时跳过（返回 None）。
-
-            仅使用越南市场（OpenStock）的部署中，efinance/akshare 等中国/美股
-            数据源依赖可能未安装。此处缺库不应导致整个 manager 初始化失败。
-            """
-            try:
-                mod = __import__(f"{__package__}.{module_name}", fromlist=[class_name])
-                return getattr(mod, class_name)()
-            except Exception as exc:
-                logger.debug("[数据源初始化] 跳过 %s（依赖缺失或加载失败）: %s", class_name, exc)
-                return None
-
-        # 创建中国/美股数据源实例（优先级在各 Fetcher 的 __init__ 中确定）；缺库则为 None
-        base_specs = [
-            ("efinance_fetcher", "EfinanceFetcher"),
-            ("tencent_fetcher", "TencentFetcher"),
-            ("akshare_fetcher", "AkshareFetcher"),
-            ("pytdx_fetcher", "PytdxFetcher"),
-            ("baostock_fetcher", "BaostockFetcher"),
-            ("yfinance_fetcher", "YfinanceFetcher"),
-        ]
-        base_fetchers: List[BaseFetcher] = [
-            f for f in (_safe_instantiate(m, c) for m, c in base_specs) if f is not None
-        ]
+        # 创建所有数据源实例（优先级在各 Fetcher 的 __init__ 中确定）
+        efinance = EfinanceFetcher()
+        tencent = TencentFetcher()
+        akshare = AkshareFetcher()
+        pytdx = PytdxFetcher()      # 通达信数据源（可配 PYTDX_HOST/PYTDX_PORT）
+        baostock = BaostockFetcher()
+        yfinance = YfinanceFetcher()
         optional_fetchers: List[BaseFetcher] = []
 
         # OpenStock（越南市场）：启用时加入，最高优先级处理越南标的
         if getattr(config, "openstock_enabled", False):
-            openstock = _safe_instantiate("openstock_fetcher", "OpenStockFetcher")
-            if openstock is not None:
-                optional_fetchers.append(openstock)
-                logger.info("[数据源初始化] 已启用 OpenStockFetcher（越南市场）")
+            from .openstock_fetcher import OpenStockFetcher
+            optional_fetchers.append(OpenStockFetcher())
+            logger.info("[数据源初始化] 已启用 OpenStockFetcher（越南市场）")
         else:
             logger.debug("[数据源初始化] 跳过未启用的 OpenStockFetcher（OPENSTOCK_ENABLED=false）")
 
         tushare_token = (getattr(config, "tushare_token", None) or "").strip()
         if tushare_token:
-            tushare = _safe_instantiate("tushare_fetcher", "TushareFetcher")
-            if tushare is not None:
-                optional_fetchers.append(tushare)  # 会根据 Token 配置自动调整优先级
+            optional_fetchers.append(TushareFetcher())  # 会根据 Token 配置自动调整优先级
         else:
             logger.debug("[数据源初始化] 跳过未配置的 TushareFetcher")
 
-        try:
-            from .longbridge_fetcher import LongbridgeFetcher
-            if LongbridgeFetcher.has_configured_credentials(config):
-                optional_fetchers.append(LongbridgeFetcher())  # 长桥（美股/港股兜底，懒加载）
-            else:
-                logger.debug("[数据源初始化] 跳过未配置的 LongbridgeFetcher")
-        except Exception as exc:
-            logger.debug("[数据源初始化] 跳过 LongbridgeFetcher（依赖缺失或加载失败）: %s", exc)
+        if LongbridgeFetcher.has_configured_credentials(config):
+            optional_fetchers.append(LongbridgeFetcher())  # 长桥（美股/港股兜底，懒加载）
+        else:
+            logger.debug("[数据源初始化] 跳过未配置的 LongbridgeFetcher")
 
         finnhub_api_key = (getattr(config, "finnhub_api_key", None) or "").strip()
         if finnhub_api_key:
-            finnhub = _safe_instantiate("finnhub_fetcher", "FinnhubFetcher")
-            if finnhub is not None:
-                optional_fetchers.append(finnhub)
+            from .finnhub_fetcher import FinnhubFetcher
+            optional_fetchers.append(FinnhubFetcher())
         else:
             logger.debug("[数据源初始化] 跳过未配置的 FinnhubFetcher")
 
         alphavantage_api_key = (getattr(config, "alphavantage_api_key", None) or "").strip()
         if alphavantage_api_key:
-            alphavantage = _safe_instantiate("alphavantage_fetcher", "AlphaVantageFetcher")
-            if alphavantage is not None:
-                optional_fetchers.append(alphavantage)
+            from .alphavantage_fetcher import AlphaVantageFetcher
+            optional_fetchers.append(AlphaVantageFetcher())
         else:
             logger.debug("[数据源初始化] 跳过未配置的 AlphaVantageFetcher")
 
@@ -1227,7 +1207,12 @@ class DataFetcherManager:
         self._ensure_concurrency_guards()
         with self._fetchers_lock:
             self._fetchers = [
-                *base_fetchers,
+                efinance,
+                tencent,
+                akshare,
+                pytdx,
+                baostock,
+                yfinance,
                 *optional_fetchers,
             ]
 
@@ -1276,7 +1261,7 @@ class DataFetcherManager:
         Raises:
             DataFetchError: 所有数据源都失败时抛出
         """
-        from .us_index_mapping import is_us_index_code, is_us_stock_code
+        from .us_index_mapping import is_us_index_code
 
         # Normalize code (strip SH/SZ prefix etc.)
         stock_code = normalize_stock_code(stock_code)
@@ -1289,14 +1274,15 @@ class DataFetcherManager:
         #   - 配置长桥凭据后: Longbridge 为首选, YFinance/AkShare 兜底
         #   - 未配置长桥:     YFinance 为首选（美股）, 通用 fetcher 循环（港股）
         #   - 美股指数:       始终 YFinance 为首选（Longbridge 不提供指数K线）
-        # 越南市场优先（仅在启用 OpenStock 时）：避免 3 字母代码被当成美股。
-        is_vn = _is_vn_market(stock_code)
+        # 市场判定统一走 _market_tag()（vn 优先，避免 3 字母代码被当成美股）；
+        # is_us_index 是 market == "us" 的子类型，单独判定。
+        market = _market_tag(stock_code)
+        is_vn = market == "vn"
         is_us_index = (not is_vn) and is_us_index_code(stock_code)
-        is_us = (not is_vn) and (is_us_index or is_us_stock_code(stock_code))
-        is_hk = (not is_vn) and (not is_us) and _is_hk_market(stock_code)
-        is_jp = (not is_vn) and (not is_us) and (not is_hk) and _is_jp_market(stock_code)
-        is_kr = (not is_vn) and (not is_us) and (not is_hk) and _is_kr_market(stock_code)
-        market = "vn" if is_vn else "us" if is_us else "hk" if is_hk else "jp" if is_jp else "kr" if is_kr else "cn"
+        is_us = market == "us"
+        is_hk = market == "hk"
+        is_jp = market == "jp"
+        is_kr = market == "kr"
         if market != "cn":
             fetchers = self._filter_daily_fetchers_for_market(fetchers, market)
         fetchers = self._filter_fetchers_by_capability(fetchers, capability="daily_data")
@@ -1710,7 +1696,6 @@ class DataFetcherManager:
         # Normalize code (strip SH/SZ prefix etc.)
         stock_code = normalize_stock_code(stock_code)
 
-        from .akshare_fetcher import _is_us_code
         from .us_index_mapping import is_us_index_code
         from src.config import get_config
 
@@ -1727,13 +1712,14 @@ class DataFetcherManager:
         #   未配置长桥: YFinance/AkShare 首选, Longbridge 补充
         #   美股指数:   始终 YFinance 首选（Longbridge 不提供指数行情）
         # ----------------------------------------------------------
-        # 越南市场优先（仅在启用 OpenStock 时）：直接走 OpenStock 专用路由。
-        is_vn = _is_vn_market(stock_code)
+        # 市场判定统一走 _market_tag()（vn 优先，直接走 OpenStock 专用路由）。
+        market = _market_tag(stock_code)
+        is_vn = market == "vn"
         is_us_index = (not is_vn) and is_us_index_code(stock_code)
-        is_us = (not is_vn) and (is_us_index or _is_us_code(stock_code))
-        is_hk = (not is_vn) and (not is_us) and _is_hk_market(stock_code)
-        is_jp = (not is_vn) and (not is_us) and (not is_hk) and _is_jp_market(stock_code)
-        is_kr = (not is_vn) and (not is_us) and (not is_hk) and _is_kr_market(stock_code)
+        is_us = market == "us"
+        is_hk = market == "hk"
+        is_jp = market == "jp"
+        is_kr = market == "kr"
 
         if is_vn:
             quote = self._try_fetcher_quote(stock_code, "OpenStockFetcher")
