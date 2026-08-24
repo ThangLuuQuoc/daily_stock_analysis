@@ -323,35 +323,41 @@ xung đột và là nguồn rò tiếng Trung trong tương lai.
 
 **DoD:** report FPT chứa tăng trưởng doanh thu/LNST và dòng tiền khối ngoại; test xanh.
 
-### Phase 2 — Thu hẹp bề mặt sửa upstream · ~2–3 ngày
+### Phase 2 — Thu hẹp bề mặt sửa upstream · ✅ ĐÃ XONG (2026-08-24)
 
-**2a. Hoàn tác việc viết lại `_init_default_fetchers` / `data_provider/__init__.py`.**
-Chọn 1 trong 3, theo thứ tự ưu tiên:
-- (i) **Cài đủ dependency** trong deployment VN (rẻ nhất, diff = 0). `efinance`/`akshare`
-  chỉ nặng lúc install, không tốn runtime nếu không gọi.
-- (ii) Giữ code upstream nguyên vẹn, chỉ thêm **1 dòng** append fetcher:
-  `if config.openstock_enabled: optional_fetchers.append(OpenStockFetcher())`.
-- (iii) Nếu vẫn cần tolerant import: đưa `_optional_import` sang file mới
-  `data_provider/_optional.py`, `__init__.py` chỉ thêm 1 dòng gọi.
+**2a. ✅ Hoàn tác việc viết lại `_init_default_fetchers` / `data_provider/__init__.py`.**
+Đã kiểm chứng bằng git worktree của `vendor`: giả định làm cơ sở cho bản rewrite
+("thiếu efinance/akshare sẽ crash toàn bộ manager") là **SAI** — mọi fetcher class
+lazy-import thư viện bên thứ 3 bên trong method, không phải module/class level, nên
+hard-import nguyên bản của vendor chạy tốt dù thiếu hết 9 optional dep. Đã revert cả
+hai file về **nguyên văn vendor** + đúng 1 khối 6–8 dòng thêm `OpenStockFetcher`
+(option (ii), rẻ hơn cả 3 lựa chọn ban đầu vì không cần tolerant-import nào).
+Kết quả: `data_provider/base.py::_init_default_fetchers` 1 hunk 8 dòng (trước: rewrite
+toàn hàm); `__init__.py` revert hoàn toàn + 3 dòng import.
 
-Mục tiêu: `data_provider/base.py` từ 6 hunk xuống ≤2; `__init__.py` từ 64 dòng thêm
-xuống ~8.
+**2b. ✅ Tập trung hoá nhận diện mã VN — phần centralize, KHÔNG làm phần symbol universe.**
+- Đã gộp 2 chỗ `is_vn = _is_vn_market(...)` + tính tay is_us/is_hk/is_jp/is_kr thành
+  `market = _market_tag(stock_code)` rồi suy boolean từ `market == "..."`. Chứng minh
+  tương đương vì `_market_tag()` dùng đúng các hàm ngầm định theo đúng thứ tự ưu tiên.
+- **KHÔNG** làm phần "openstock_symbols.py → symbol universe từ OpenStock": xác nhận
+  lại OpenStock chỉ có `GET /search?q=` (cần query), không có endpoint liệt kê toàn bộ
+  mã — build cache dựa trên endpoint không tồn tại là suy đoán. Tương tự không đoán
+  regex cho ETF/derivatives vì không xác minh được danh sách mã hiện hành từ môi
+  trường này. Giữ nguyên hạn chế đã biết (mã 3 chữ US bị coi là VN khi bật
+  `OPENSTOCK_ENABLED`), đã test-lock bằng
+  `test_flag_off_thi_ma_3_chu_bi_coi_la_my___han_che_da_biet`.
+- **Bằng chứng giá trị của việc centralize** (đo bằng merge thật với `upstream/main`):
+  upstream đã tự thêm thị trường Đài Loan (`is_tw`/`_is_tw_market`) đúng vào những dòng
+  Phase 2b vừa dọn. Trước: phải tách `is_tw` thủ công khỏi 2 chuỗi boolean độc lập ở 2
+  hàm. Sau: chỉ 2 dòng (1 trong `_market_tag()`, 1 mỗi call site).
 
-**2b. Tập trung hoá nhận diện mã VN.**
-- `openstock_symbols.py` thành **single source of truth**, dữ liệu lấy từ OpenStock
-  (`/search` hoặc thêm `/symbols`), cache trên đĩa + TTL, regex chỉ còn là fallback.
-  Xử lý đúng: ETF (`FUEVFVND`, `E1VFVN30`), phái sinh (`VN30F2409`), chứng quyền, và
-  **không** nhận mã 3 chữ không có trong universe.
-- Chèn vào upstream tại **đúng 1 điểm**: `_market_tag()` trong `base.py`. Bỏ 5 chỗ
-  `is_vn = _is_vn_market(...)` rải rác, thay bằng `market = _market_tag(code)` đã có.
-- Với mỗi resolver mới của upstream (`market_symbol_utils`, `stock_list_parser`,
-  `name_to_code_resolver`, target-resolution contract 3.30.0, `canonical_id` 3.31.0):
-  thêm hook 1 dòng + 1 dòng trong `vn-fork-touchpoints.md`.
-- Nếu muốn phục vụ đồng thời VN và US: yêu cầu suffix tường minh (`FPT.VN`) hoặc
-  whitelist universe — đừng dựa vào flag global.
+**2c. ✅** Tách `/search` ra `api/v1/endpoints/vn_search.py`, mount cùng
+`prefix="/stocks"` trong `router.py` (giữ nguyên URL `/api/v1/stocks/search`, frontend
+không đổi). `stocks.py` quay lại gần như nguyên bản upstream. Test khoá URL:
+`tests/test_vn_search_endpoint.py`.
 
-**2c.** Tách `/search` ra `api/v1/endpoints/vn_search.py` + 1 dòng `include_router`;
-đưa `stocks.py` về gần nguyên bản. Thêm field `nameLocal` thay vì nhồi `nameZh`.
+Chi tiết đầy đủ + số liệu đo được: `docs/vn-fork-touchpoints.md` §1.1/§1.5/§3.
+Commit: `a18d8f40` (Phase 2 chính), `e3ad985e` (Phase 1, đi trước).
 
 **DoD:** trial merge lại → số file xung đột giảm từ 28 xuống ≤18.
 
