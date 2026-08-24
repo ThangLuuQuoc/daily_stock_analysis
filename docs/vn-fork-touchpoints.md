@@ -161,8 +161,8 @@ hoa** → mã VN 3 chữ là tập con. Mỗi module dưới đây là một ch�
 | Chỉ số | Trước Phase 2 | Sau Phase 2a+2b+2c | Mục tiêu sau Phase 3 |
 |---|---|---|---|
 | File upstream bị sửa | 66 | **67**¹ | ≤ 30 |
-| File xung đột khi merge v3.31.0 | 28 | _(đo lại trước khi merge thật)_ | ≤ 10 |
-| Hunk xung đột | 98 | _(đo lại trước khi merge thật)_ | ≤ 25 |
+| File xung đột khi merge v3.31.0 | 28 | **28**² | ≤ 10 |
+| Hunk xung đột | 98 | **100**² | ≤ 25 |
 
 ¹ Tăng 1 vì Phase 2c thêm `api/v1/router.py` vào danh sách file bị sửa (5 dòng, HOOK
 thuần) để tách `/search` ra khỏi `stocks.py`. Đổi lại: `data_provider/base.py` và
@@ -190,3 +190,14 @@ universe thật (cần thêm vào `openstock_adapter_gaps.md` mục C như một
 chỉ cần sửa `_is_vn_market()` một chỗ, mọi call site tự động ăn theo.
 
 Test khoá lại giới hạn đã biết: `tests/test_vn_fundamental_context.py::test_flag_off_thi_ma_3_chu_bi_coi_la_my___han_che_da_biet`.
+
+² Số đếm gần như không đổi (28 file / +2 hunk), NHƯNG chất lượng xung đột ở
+`data_provider/base.py` tốt hơn hẳn nhờ Phase 2b — kiểm chứng bằng merge thật:
+upstream v3.31.0 (chưa release lúc viết tài liệu này, thấy ở `upstream/main`)
+đã tự thêm **thị trường Đài Loan** (`is_tw`/`_is_tw_market`/`market == "tw"`)
+đúng vào NHỮNG DÒNG mà Phase 2b vừa dọn. Trước Phase 2b: phải tách `is_tw` thủ
+công ra khỏi 2 chuỗi boolean lồng nhau độc lập ở 2 hàm khác nhau. Sau Phase 2b:
+chỉ cần thêm `if _is_tw_market(code): return "tw"` một lần trong `_market_tag()`
+và `is_tw = market == "tw"` ở 2 call site — không còn phải object với logic
+`(not is_us) and (not is_hk) and ...` của upstream. Đây chính là lợi ích
+"tập trung hoá" nói ở đầu tài liệu, giờ có bằng chứng thật từ merge thử.
