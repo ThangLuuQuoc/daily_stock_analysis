@@ -79,7 +79,52 @@ class TestReportRenderer(unittest.TestCase):
         self.assertIsNotNone(out)
         self.assertIn("决策仪表盘", out)
         self.assertIn("贵州茅台", out)
+        self.assertIn("买入", out)
+        self.assertIn("🟢买入:1", out)
+
+    def test_render_markdown_preserves_guardrailed_neutral_action(self) -> None:
+        r = _make_result(
+            dashboard={
+                "core_conclusion": {"one_sentence": "等待确认"},
+                "decision_stability": {"applied": True, "reason": "等待回踩确认"},
+            }
+        )
+
+        out = render("markdown", [r], summary_only=True)
+
+        self.assertIsNotNone(out)
         self.assertIn("持有", out)
+        self.assertIn("🟡观望:1", out)
+
+    def test_render_markdown_uses_explicit_avoid_and_alert_text(self) -> None:
+        avoid = _make_result(
+            code="AVOID",
+            name="Avoid Corp",
+            sentiment_score=90,
+            operation_advice="Buy",
+            report_language="en",
+        )
+        avoid.action = "avoid"
+        avoid.action_label = "Avoid"
+        alert = _make_result(
+            code="ALERT",
+            name="Alert Corp",
+            sentiment_score=85,
+            operation_advice="Buy",
+            report_language="en",
+        )
+        alert.action = "alert"
+        alert.action_label = "Alert"
+
+        out = render("markdown", [avoid, alert], summary_only=True)
+
+        self.assertIsNotNone(out)
+        self.assertIn("🟡 **Avoid Corp(AVOID)**: Avoid | Score 90", out)
+        self.assertIn("🔴 **Alert Corp(ALERT)**: Alert | Score 85", out)
+        self.assertIn("**Avoid Corp(AVOID)**: Avoid | Score 90", out)
+        self.assertIn("**Alert Corp(ALERT)**: Alert | Score 85", out)
+        self.assertNotIn("**Avoid Corp(AVOID)**: Buy", out)
+        self.assertNotIn("**Alert Corp(ALERT)**: Buy", out)
 
     def test_render_markdown_full(self) -> None:
         """Markdown platform renders full report."""

@@ -485,6 +485,7 @@ const PortfolioPage: React.FC = () => {
       const snapshotData = await portfolioApi.getSnapshot({
         accountId: queryAccountId,
         costMethod,
+        includeRealtime: false,
       });
       setSnapshot(snapshotData);
       setError(null);
@@ -493,6 +494,7 @@ const PortfolioPage: React.FC = () => {
         const riskData = await portfolioApi.getRisk({
           accountId: queryAccountId,
           costMethod,
+          includeRealtime: false,
         });
         setRisk(riskData);
       } catch (riskErr) {
@@ -995,6 +997,7 @@ const PortfolioPage: React.FC = () => {
       const snapshotData = await portfolioApi.getSnapshot({
         accountId: requestedAccountId,
         costMethod: requestedCostMethod,
+        includeRealtime: false,
       });
       if (!isActiveRefreshContext(requestedViewKey, requestedRequestId)) {
         return false;
@@ -1006,6 +1009,7 @@ const PortfolioPage: React.FC = () => {
         const riskData = await portfolioApi.getRisk({
           accountId: requestedAccountId,
           costMethod: requestedCostMethod,
+          includeRealtime: false,
         });
         if (!isActiveRefreshContext(requestedViewKey, requestedRequestId)) {
           return false;

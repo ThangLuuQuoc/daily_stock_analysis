@@ -101,6 +101,7 @@ from src.schemas.report_schema import AnalysisReportSchema
 from src.market_context import detect_market, get_market_role, get_market_guidelines
 from src.services.daily_market_context import format_daily_market_context_prompt_section
 from src.market_phase_prompt import format_market_phase_prompt_section
+from src.market_structure_prompt import format_market_structure_prompt_section
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +255,7 @@ def _legacy_audit_marker_specs(
     add("analysis_date", context.get("date"))
     add("market_phase", _localized_text(report_language, en="## Market Phase Context", zh="## 市场阶段上下文", ko="## Market Phase Context", vi="## Bối cảnh giai đoạn thị trường"))
     add("daily_market_context", _localized_text(report_language, en="## Daily Market Context", zh="## 大盘环境摘要", ko="## Daily Market Context", vi="## Tóm tắt môi trường thị trường chung"))
+    add("market_structure_context", _localized_text(report_language, en="## Market Structure Context", zh="## 市场结构上下文", ko="## Market Structure Context", vi="## Bối cảnh cấu trúc thị trường"))
     add("analysis_context_pack", analysis_context_pack_summary)
     add("quote", "## 📈 Dữ liệu kỹ thuật")
     add("news_context", "## 📰 Thông tin tâm lý thị trường" if news_context else None)
@@ -1761,6 +1763,7 @@ class AnalysisResult:
 
     # ========== 基本面上下文（仅运行时，用于通知拼装；不持久化到 to_dict）==========
     fundamental_context: Optional[Dict[str, Any]] = None
+    market_structure_context: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -1800,6 +1803,7 @@ class AnalysisResult:
             'current_price': self.current_price,
             'change_pct': self.change_pct,
             'model_used': self.model_used,
+            'market_structure_context': self.market_structure_context,
         }
 
     def get_core_conclusion(self) -> str:
@@ -3791,6 +3795,12 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
         )
         if daily_market_context_section:
             prompt += daily_market_context_section
+        market_structure_section = format_market_structure_prompt_section(
+            context.get("market_structure_context"),
+            report_language=report_language,
+        )
+        if market_structure_section:
+            prompt += market_structure_section
         if isinstance(analysis_context_pack_summary, str) and analysis_context_pack_summary:
             prompt += analysis_context_pack_summary
         prompt += f"""
