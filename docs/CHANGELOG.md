@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] 新增 `docs/local-dev-startup.md`：本地全栈（OpenStock 数据源 / freellmapi LLM 网关 / 后端 / Web）启动顺序、端口、环境变量与排障，并在 AGENTS.md 常用命令处加指引。
 - [文档] 新增 OmniRoute 本地网关作为 freellmapi 的替代接入方案（`.env.example` + `docs/llm-providers.md` 对比说明），二者均为 OpenAI-compatible channel，二选一。
 - [新功能] 新增越南市场新闻模式（`VN_NEWS_ENABLED`/`VN_NEWS_DOMAINS`）：开启后股票新闻与多维度情报搜索改用越南语查询、越南地区 locale（SerpAPI gl=vn/hl=vi），结果按越南来源（.vn 域名 + allowlist）过滤，越南代码不再被误判为美股；默认关闭，行为不变。新闻检索仍走搜索引擎层，不经过 LLM 网关。
+## [3.24.1] - 2026-06-28
+
+### 修复
+
+- 修正 Longbridge SDK 版本约束为按平台选择可安装版本，避免桌面与 Docker 发布在 `pip install -r requirements.txt` 时因不存在的 `0.2.75` 版本失败。
+
 ## [3.24.0] - 2026-06-28
 
 ### 发布亮点
@@ -1919,7 +1925,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.24.0...HEAD
+[Unreleased]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.24.1...HEAD
+[3.24.1]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.24.0...v3.24.1
 [3.24.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.23.0...v3.24.0
 [3.23.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.22.0...v3.23.0
 [3.22.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.21.1...v3.22.0
