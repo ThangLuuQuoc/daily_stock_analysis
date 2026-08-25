@@ -127,6 +127,54 @@ co tsc cu hon `package.json` yeu cau thi `tsc -p` chi bao loi OPTION roi dung �
 KHONG typecheck file nao, va moi loi that bi che. Da xay ra: tsc 5.0.4 vs yeu cau
 5.9.3 che mat 17 loi.
 
+### 1.1f Quy tac vang: KHONG BAO GIO xoa literal cua upstream
+
+Do luong "so literal tieng Trung bi MAT HAN" (co trong dong `-`, khong co trong
+bat ky dong `+` nao) la thuoc do no merge chinh xac nhat cua fork nay.
+
+    git diff upstream/main -- <file>
+
+`analyzer.py`: 166 literal mat -> 6 (deu la duong tinh gia cua regex).
+
+Bon cach hop le de them tieng Viet, xep theo do uu tien:
+
+| # | Cach | Vi du | Khi nao |
+|---|---|---|---|
+| 1 | Them khoa `vi` vao bang co san | `{"zh": "买入", "en": "Buy", "vi": "Mua"}` | Upstream da co bang theo ngon ngu |
+| 2 | Them tham so `vi=` | `_localized_text(lang, en=..., zh=..., ko=..., vi=...)` | Upstream dung helper chon ngon ngu |
+| 3 | Nhanh moi ben canh | `if lang == "vi": ... elif lang == "zh": ...` | Doan van dai, nhieu bien |
+| 4 | Bang tra cuu ngoai tree | `_L("开盘价")` + `PROMPT_LABELS_VI` | Nhieu nhan nam trong f-string lon |
+
+**PHAN DIEN HINH SAI** — da gap that trong fork nay:
+
+```python
+# SAI: dao dieu kien, nhanh `else` nuot ca zh/ko
+return "Capital flow unsupported" if language == "en" else "Dich vu dong tien..."
+
+# SAI: ghi de vo dieu kien, moi ngon ngu deu nhan tieng Viet
+add("quote", "## 📈 Dữ liệu kỹ thuật")
+
+# SAI: dich thang trong ham upstream, xoa han ban goc
+def _phase_aware_quote_labels(context):
+    return "Diễn biến hôm nay", "Giá đóng cửa"   # mat "今日行情", "收盘价"
+```
+
+Ca ba deu (a) lam `REPORT_LANGUAGE=zh|en|ko` nhan tieng Viet, (b) lam test cua
+upstream do, (c) tao conflict moi lan upstream cham vao dong do.
+
+### 1.1g `src/analyzer_prompts_vi.py` — ban tieng Viet cua prompt he thong
+
+`LEGACY_DEFAULT_SYSTEM_PROMPT`, `SYSTEM_PROMPT`, `TEXT_SYSTEM_PROMPT` (~377 dong)
+nam o day; `analyzer.py` giu nguyen ban tieng Trung cua upstream va chon qua
+`GeminiAnalyzer._vn_system_prompt_templates(lang)`.
+
+Khi upstream doi prompt: merge `analyzer.py` khong conflict, roi cap nhat ban
+dich o day neu muon. Khong cap nhat cung khong vo — chi la prompt tieng Viet
+cu hon ban tieng Trung mot chut.
+
+Cung file nay giu `PROMPT_LABELS_VI` (bang tra nhan, khoa = literal tieng Trung)
+va `price_unit()` (hau to " 元": bo cho `vi`, giu cho ngon ngu khac).
+
 ### 1.2 Config
 
 | File | Vị trí | Loại | Lý do |

@@ -260,8 +260,11 @@ def _legacy_audit_marker_specs(
     add("daily_market_context", _localized_text(report_language, en="## Daily Market Context", zh="## 大盘环境摘要", ko="## Daily Market Context", vi="## Tóm tắt môi trường thị trường chung"))
     add("market_structure_context", _localized_text(report_language, en="## Market Structure Context", zh="## 市场结构上下文", ko="## Market Structure Context", vi="## Bối cảnh cấu trúc thị trường"))
     add("analysis_context_pack", analysis_context_pack_summary)
-    add("quote", "## 📈 Dữ liệu kỹ thuật")
-    add("news_context", "## 📰 Thông tin tâm lý thị trường" if news_context else None)
+    add("quote", _localized_text(report_language, en="## 📈 技术面数据", zh="## 📈 技术面数据",
+                                 ko="## 📈 技术面数据", vi="## 📈 Dữ liệu kỹ thuật"))
+    add("news_context", _localized_text(report_language, en="## 📰 舆情情报", zh="## 📰 舆情情报",
+                                        ko="## 📰 舆情情报", vi="## 📰 Thông tin tâm lý thị trường")
+        if news_context else None)
     return markers
 
 
@@ -1331,10 +1334,28 @@ def _capital_flow_bias_with_status(
 def _capital_flow_status_for_stability(reason: str, language: str) -> str:
     normalized = str(reason or "").strip().lower()
     if "not_supported" in normalized or "unsupported" in normalized or "not available" in normalized:
-        return "Capital flow source unsupported" if language == "en" else "Dịch vụ dòng tiền thị trường tạm thời không hỗ trợ"
+        return _localized_text(
+            language,
+            en="Capital flow source unsupported",
+            zh="市场资金流服务暂不支持",
+            ko="Capital flow source unsupported",
+            vi="Dịch vụ dòng tiền thị trường tạm thời không hỗ trợ",
+        )
     if "empty_stock_flow" in normalized or "missing" in normalized:
-        return "capital flow data unavailable" if language == "en" else "Thiếu dữ liệu dòng tiền"
-    return "capital flow unavailable" if language == "en" else "Dữ liệu dòng tiền không khả dụng"
+        return _localized_text(
+            language,
+            en="capital flow data unavailable",
+            zh="资金流数据缺失",
+            ko="capital flow data unavailable",
+            vi="Thiếu dữ liệu dòng tiền",
+        )
+    return _localized_text(
+        language,
+        en="capital flow unavailable",
+        zh="资金流数据不可用",
+        ko="capital flow unavailable",
+        vi="Dữ liệu dòng tiền không khả dụng",
+    )
 
 
 def _set_decision_stability_unavailable(
@@ -1350,7 +1371,13 @@ def _set_decision_stability_unavailable(
     result.dashboard = dashboard
     dashboard["decision_stability"] = {
         "applied": False,
-        "reason": "Capital flow unavailable; stability calibration not applied" if language == "en" else "Dòng tiền không khả dụng, chưa áp dụng hiệu chỉnh dòng tiền",
+        "reason": _localized_text(
+            language,
+            en="Capital flow unavailable; stability calibration not applied",
+            zh="资金流不可用，未使用资金流校准",
+            ko="Capital flow unavailable; stability calibration not applied",
+            vi="Dòng tiền không khả dụng, chưa áp dụng hiệu chỉnh dòng tiền",
+        ),
         "capital_flow_status": _capital_flow_status_for_stability(flow_status, language),
         "current_price": current_price,
         "support": support,
@@ -1426,8 +1453,16 @@ def _apply_hold_watch_dashboard(
     if not isinstance(core, dict):
         core = {}
         dashboard["core_conclusion"] = core
-    core["signal_type"] = "🟡 Hold / Watch" if language == "en" else "🟡 Nắm giữ quan sát"
-    core["one_sentence"] = f"{advice}: {reason}"
+    core["signal_type"] = _localized_text(
+        language,
+        en="🟡 Hold / Watch",
+        zh="🟡持有观望",
+        ko="🟡 Hold / Watch",
+        vi="🟡 Nắm giữ quan sát",
+    )
+    core["one_sentence"] = (
+        f"{advice}：{reason}" if normalize_report_language(language) == "zh" else f"{advice}: {reason}"
+    )
 
     position_advice = core.get("position_advice")
     if not isinstance(position_advice, dict):
@@ -1469,18 +1504,25 @@ def _downgrade_buy_without_capital_flow(
     flow_status: str,
 ) -> None:
     status_text = _capital_flow_status_for_stability(flow_status, language)
-    if language == "en":
-        advice = "Hold and watch"
-        reason = f"{status_text}; the buy call lacks capital-flow confirmation, so treat it as watch-only."
-        no_position = "Do not chase; wait for capital-flow recovery, support confirmation, or a valid breakout."
-        has_position = "Use key support as the risk line and keep position size controlled until capital flow recovers."
-        confidence = "Low"
-    else:
+    lang = normalize_report_language(language)
+    if lang == "vi":
         advice = "Nắm giữ quan sát"
         reason = f"{status_text}, kết luận mua thiếu xác nhận từ dòng tiền, tạm xử lý theo quan sát."
         no_position = "Chưa có hàng thì khoan đuổi mua, chờ dòng tiền hồi phục, xác nhận hỗ trợ hoặc bứt phá hiệu quả rồi mới hành động."
         has_position = "Đang giữ hàng thì lấy hỗ trợ then chốt làm ngưỡng quản trị rủi ro, kiểm soát tỷ trọng trước khi dòng tiền hồi phục."
         confidence = "Thấp"
+    elif lang == "zh":
+        advice = "持有观察"
+        reason = f"{status_text}，买入结论缺少资金面确认，先按观察处理。"
+        no_position = "空仓先不追买，等待资金流恢复、支撑确认或有效突破后再行动。"
+        has_position = "持仓以关键支撑为风控线，资金流恢复前控制仓位。"
+        confidence = "低"
+    else:
+        advice = "Hold and watch"
+        reason = f"{status_text}; the buy call lacks capital-flow confirmation, so treat it as watch-only."
+        no_position = "Do not chase; wait for capital-flow recovery, support confirmation, or a valid breakout."
+        has_position = "Use key support as the risk line and keep position size controlled until capital flow recovers."
+        confidence = "Low"
 
     result.decision_type = "hold"
     result.confidence_level = confidence
@@ -3789,7 +3831,13 @@ class GeminiAnalyzer:
         request_delay = config.gemini_request_delay
         if request_delay > 0:
             logger.debug(f"[LLM] 请求前等待 {request_delay:.1f} 秒...")
-            _emit_progress(65, f"{code}: Chờ {request_delay:.1f}s trước khi gọi LLM")
+            _emit_progress(65, _localized_text(
+                report_language,
+                en=f"{code}: waiting {request_delay:.1f}s before the LLM call",
+                zh=f"{code}：LLM 请求前等待 {request_delay:.1f} 秒",
+                ko=f"{code}: waiting {request_delay:.1f}s before the LLM call",
+                vi=f"{code}: Chờ {request_delay:.1f}s trước khi gọi LLM",
+            ))
             time.sleep(request_delay)
         
         # 优先从上下文获取股票名称（由 main.py 传入）
@@ -3941,7 +3989,13 @@ class GeminiAnalyzer:
             }
 
             logger.info(f"[LLM调用] 开始调用 {model_name}...")
-            _emit_progress(68, f"{name}: LLM đã nhận yêu cầu, đang chờ phản hồi")
+            _emit_progress(68, _localized_text(
+                report_language,
+                en=f"{name}: LLM received the request, waiting for a response",
+                zh=f"{name}：LLM 已接收请求，等待响应",
+                ko=f"{name}: LLM received the request, waiting for a response",
+                vi=f"{name}: LLM đã nhận yêu cầu, đang chờ phản hồi",
+            ))
 
             # 使用 litellm 调用（支持完整性校验重试）
             current_prompt = prompt
@@ -3989,7 +4043,13 @@ class GeminiAnalyzer:
                     )
                 # Keep parser/retry progress monotonic so task progress/message never "goes backward".
                 parse_progress = min(99, 93 + retry_count * 2)
-                _emit_progress(parse_progress, f"{name}: LLM trả về xong, đang phân tích JSON")
+                _emit_progress(parse_progress, _localized_text(
+                    report_language,
+                    en=f"{name}: LLM responded, parsing JSON",
+                    zh=f"{name}：LLM 返回完成，正在解析 JSON",
+                    ko=f"{name}: LLM responded, parsing JSON",
+                    vi=f"{name}: LLM trả về xong, đang phân tích JSON",
+                ))
 
                 # 解析响应
                 result = self._parse_response(response_text, code, name)
