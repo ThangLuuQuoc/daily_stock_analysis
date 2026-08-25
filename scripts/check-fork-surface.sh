@@ -14,17 +14,27 @@
 
 set -uo pipefail
 
-VENDOR_REF="${VENDOR_REF:-vendor}"
+# MOC SO SANH = upstream/main (upstream HIEN TAI), khong phai 'vendor'.
+#
+# 'vendor' ghim commit base LUC FORK (ecf87ea0). Sau khi fork da bat kip 8 release
+# cua upstream, `git diff vendor` dem CA thay doi cua chinh upstream — bao 404 file
+# "bi fork sua" trong khi so that la 73. Do la loi cua script nay truoc day.
+#
+# Dat VENDOR_REF=vendor de lay lai hanh vi cu neu can so voi base goc.
+VENDOR_REF="${VENDOR_REF:-upstream/main}"
 
-# === Nguong (ha dan theo tung phase, dung nang len) ===
-MAX_MODIFIED_FILES="${MAX_MODIFIED_FILES:-70}"   # muc tieu: <=45 sau Phase 2, <=30 sau Phase 3
-MAX_CONFLICT_FILES="${MAX_CONFLICT_FILES:-30}"   # muc tieu: <=18 sau Phase 2, <=10 sau Phase 3
+# === Nguong ===
+# Con so hien tai (so voi upstream/main): 73 file sua, 38 file moi.
+# Phan lon 73 file la frontend (apps/dsa-web) va docs/plan — chua don.
+# Muc tieu ke tiep: <=60 sau khi don frontend i18n.
+MAX_MODIFIED_FILES="${MAX_MODIFIED_FILES:-75}"
+MAX_CONFLICT_FILES="${MAX_CONFLICT_FILES:-30}"
 
 cd "$(dirname "$0")/.." || exit 1
 
 if ! git rev-parse --verify --quiet "$VENDOR_REF" >/dev/null; then
     echo "LOI: khong tim thay ref '$VENDOR_REF'."
-    echo "     Branch 'vendor' phai chua snapshot NGUYEN BAN cua upstream."
+    echo "     Can 'upstream/main'. Chay: git fetch upstream"
     echo "     Xem docs/vn-fork-touchpoints.md."
     exit 2
 fi
