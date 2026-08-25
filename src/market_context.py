@@ -15,6 +15,21 @@ from typing import Optional
 from src.services.market_symbol_utils import get_suffix_market
 
 
+def _is_vn_market_code(code: str) -> bool:
+    """fork VN: uy quyen cho `data_provider.base._is_vn_market` (co guard
+    OPENSTOCK_ENABLED + tra bang ma OpenStock).
+
+    Bat moi loi: `market_context` duoc import rat som, `data_provider` co the
+    chua san sang. That bai -> tra False, tuc giu nguyen hanh vi upstream.
+    """
+    try:
+        from data_provider.base import _is_vn_market
+
+        return bool(_is_vn_market(code))
+    except Exception:
+        return False
+
+
 def detect_market(stock_code: Optional[str]) -> str:
     """Detect market from stock code.
 
@@ -25,6 +40,12 @@ def detect_market(stock_code: Optional[str]) -> str:
         return "cn"
 
     code = stock_code.strip().upper()
+
+    # fork VN: hoi truoc tien, vi ticker VN 3 chu (VIC/FPT) trung regex US ben
+    # duoi. `_is_vn_market` chi tra True khi OPENSTOCK_ENABLED nen deployment
+    # CN/US khong bi nhan nham. Xem src/market_context_vi.py.
+    if _is_vn_market_code(code):
+        return "vn"
 
     # HK stocks: HK00700, 00700.HK, or 5-digit pure numbers
     if code.startswith("HK") or code.endswith(".HK"):
@@ -55,23 +76,23 @@ def detect_market(stock_code: Optional[str]) -> str:
 
 _MARKET_ROLES = {
     "cn": {
-        "zh": "cổ phiếu A-share",
+        "zh": " A 股",
         "en": "China A-shares",
     },
     "hk": {
-        "zh": "cổ phiếu Hồng Kông",
+        "zh": "港股",
         "en": "Hong Kong stock",
     },
     "us": {
-        "zh": "cổ phiếu Mỹ",
+        "zh": "美股",
         "en": "US stock",
     },
     "jp": {
-        "zh": "cổ phiếu Nhật",
+        "zh": "日股",
         "en": "Japan stock",
     },
     "kr": {
-        "zh": "cổ phiếu Hàn Quốc",
+        "zh": "韩股",
         "en": "Korea stock",
     },
     "tw": {
@@ -83,8 +104,8 @@ _MARKET_ROLES = {
 _MARKET_GUIDELINES = {
     "cn": {
         "zh": (
-            "- Đối tượng phân tích lần này là **cổ phiếu A-share** (niêm yết trên sàn Thượng Hải/Thâm Quyến của Trung Quốc).\n"
-            "- Hãy chú ý cơ chế trần/sàn đặc thù của A-share (±10%/±20%/±30%), chế độ giao dịch T+1 và các yếu tố chính sách liên quan."
+            "- 本次分析对象为 **A 股**（中国沪深交易所上市股票）。\n"
+            "- 请关注 A 股特有的涨跌停机制（±10%/±20%/±30%）、T+1 交易制度及相关政策因素。"
         ),
         "en": (
             "- This analysis covers a **China A-share** (listed on Shanghai/Shenzhen exchanges).\n"
@@ -93,8 +114,8 @@ _MARKET_GUIDELINES = {
     },
     "hk": {
         "zh": (
-            "- Đối tượng phân tích lần này là **cổ phiếu Hồng Kông** (niêm yết trên Sở giao dịch Hồng Kông).\n"
-            "- Cổ phiếu Hồng Kông không có giới hạn trần/sàn, hỗ trợ giao dịch T+0, cần chú ý tỷ giá HKD, dòng vốn Nam-Bắc và các quy tắc đặc thù của HKEX."
+            "- 本次分析对象为 **港股**（香港交易所上市股票）。\n"
+            "- 港股无涨跌停限制，支持 T+0 交易，需关注港币汇率、南北向资金流及联交所特有规则。"
         ),
         "en": (
             "- This analysis covers a **Hong Kong stock** (listed on HKEX).\n"
@@ -103,8 +124,8 @@ _MARKET_GUIDELINES = {
     },
     "us": {
         "zh": (
-            "- Đối tượng phân tích lần này là **cổ phiếu Mỹ** (niêm yết trên sàn Mỹ).\n"
-            "- Cổ phiếu Mỹ không có giới hạn trần/sàn (nhưng có cơ chế ngắt mạch), hỗ trợ giao dịch T+0 và giao dịch trước/sau giờ, cần chú ý tỷ giá USD, chính sách của Fed và động thái giám sát của SEC."
+            "- 本次分析对象为 **美股**（美国交易所上市股票）。\n"
+            "- 美股无涨跌停限制（但有熔断机制），支持 T+0 交易和盘前盘后交易，需关注美元汇率、美联储政策及 SEC 监管动态。"
         ),
         "en": (
             "- This analysis covers a **US stock** (listed on NYSE/NASDAQ).\n"
@@ -113,8 +134,8 @@ _MARKET_GUIDELINES = {
     },
     "jp": {
         "zh": (
-            "- Đối tượng phân tích lần này là **cổ phiếu Nhật** (niêm yết trên sàn Nhật, hậu tố Yahoo Finance như `.T`).\n"
-            "- Hãy phân tích theo bối cảnh thị trường Nhật, chú ý tỷ giá JPY, chính sách của BOJ, quản trị doanh nghiệp và chu kỳ ngành; không áp dụng các khái niệm đặc thù của A-share như trần/sàn, dòng vốn phía Bắc, bảng Long Hổ, ký quỹ."
+            "- 本次分析对象为 **日股**（日本交易所上市股票，Yahoo Finance suffix 如 `.T`）。\n"
+            "- 请按日本市场语境分析，关注日元汇率、日本央行政策、公司治理与行业周期；不要套用 A 股涨跌停、北向资金、龙虎榜、融资融券等 A 股专属概念。"
         ),
         "en": (
             "- This analysis covers a **Japan stock** (Yahoo Finance suffix such as `.T`).\n"
@@ -123,8 +144,8 @@ _MARKET_GUIDELINES = {
     },
     "kr": {
         "zh": (
-            "- Đối tượng phân tích lần này là **cổ phiếu Hàn Quốc** (niêm yết trên sàn Hàn Quốc/KOSDAQ, bắt buộc có hậu tố `.KS` / `.KQ`).\n"
-            "- Hãy phân tích theo bối cảnh thị trường Hàn Quốc, chú ý tỷ giá KRW, chính sách của Ngân hàng Trung ương Hàn Quốc, chu kỳ ngành bán dẫn/internet và chế độ giao dịch Hàn Quốc; không áp dụng các khái niệm đặc thù của A-share như trần/sàn, dòng vốn phía Bắc, bảng Long Hổ, ký quỹ."
+            "- 本次分析对象为 **韩股**（韩国交易所/KOSDAQ 上市股票，必须带 `.KS` / `.KQ` 后缀）。\n"
+            "- 请按韩国市场语境分析，关注韩元汇率、韩国央行政策、半导体/互联网产业周期与韩国交易制度；不要套用 A 股涨跌停、北向资金、龙虎榜、融资融券等 A 股专属概念。"
         ),
         "en": (
             "- This analysis covers a **Korea stock** (KOSPI/KOSDAQ suffix `.KS` / `.KQ`).\n"
@@ -149,6 +170,18 @@ _MARKET_GUIDELINES = {
 }
 
 
+def _lang_key(lang: str) -> str:
+    """fork VN: upstream chi co "zh"/"en"; them "vi".
+
+    `.get(key) or entry["zh"]` o cho goi lo ra khoa thieu bang cach rot ve
+    tieng Trung thay vi nem KeyError — upstream them thi truong moi ma fork
+    chua dich thi van chay.
+    """
+    if lang == "vi":
+        return "vi"
+    return "en" if lang in ("en", "ko") else "zh"
+
+
 def get_market_role(stock_code: Optional[str], lang: str = "zh") -> str:
     """Return market-specific role description for LLM prompt.
 
@@ -160,8 +193,9 @@ def get_market_role(stock_code: Optional[str], lang: str = "zh") -> str:
         Role string like 'A 股投资分析' or 'US stock investment analysis'.
     """
     market = detect_market(stock_code)
-    lang_key = "en" if lang in ("en", "ko") else "zh"
-    return _MARKET_ROLES.get(market, _MARKET_ROLES["cn"])[lang_key]
+    lang_key = _lang_key(lang)
+    entry = _MARKET_ROLES.get(market, _MARKET_ROLES["cn"])
+    return entry.get(lang_key) or entry["zh"]
 
 
 def get_market_guidelines(stock_code: Optional[str], lang: str = "zh") -> str:
@@ -175,5 +209,13 @@ def get_market_guidelines(stock_code: Optional[str], lang: str = "zh") -> str:
         Multi-line string with market-specific guidelines.
     """
     market = detect_market(stock_code)
-    lang_key = "en" if lang in ("en", "ko") else "zh"
-    return _MARKET_GUIDELINES.get(market, _MARKET_GUIDELINES["cn"])[lang_key]
+    lang_key = _lang_key(lang)
+    entry = _MARKET_GUIDELINES.get(market, _MARKET_GUIDELINES["cn"])
+    return entry.get(lang_key) or entry["zh"]
+
+
+# fork VN: dang ky ban dich tieng Viet + thi truong `vn`. Dat o CUOI file de
+# _MARKET_ROLES / _MARKET_GUIDELINES da ton tai.
+from src.market_context_vi import register as _register_vi  # noqa: E402
+
+_register_vi()
