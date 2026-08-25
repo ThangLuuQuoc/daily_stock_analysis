@@ -39,6 +39,16 @@ KO_NO_CHANNEL_DISCLOSURE = (
     "⚠️ 뉴스 검색 채널이 설정되지 않아 이번 분석에는 "
     "뉴스 근거를 반영하지 않았습니다."
 )
+# fork VN: test cua upstream duyet SUPPORTED_REPORT_LANGUAGES nen them "vi" vao
+# SUPPORTED thi PHAI them fixture o day. Chuoi lay tu src/services/empty_news.py.
+VI_ZERO_HIT_DISCLOSURE = (
+    "⚠️ Lần chạy này không lấy được dữ liệu tin tức khả dụng; "
+    "các kết luận bên dưới không sử dụng bằng chứng từ tin tức."
+)
+VI_NO_CHANNEL_DISCLOSURE = (
+    "⚠️ Chưa cấu hình kênh tìm kiếm tin tức; "
+    "phân tích này không sử dụng bằng chứng từ tin tức."
+)
 
 
 def _make_result(
@@ -314,6 +324,7 @@ class SupportedLanguageDisclosureTestCase(unittest.TestCase):
         "zh": (NO_CHANNEL_DISCLOSURE, ZERO_HIT_DISCLOSURE),
         "en": (EN_NO_CHANNEL_DISCLOSURE, EN_ZERO_HIT_DISCLOSURE),
         "ko": (KO_NO_CHANNEL_DISCLOSURE, KO_ZERO_HIT_DISCLOSURE),
+        "vi": (VI_NO_CHANNEL_DISCLOSURE, VI_ZERO_HIT_DISCLOSURE),
     }
 
     def setUp(self):

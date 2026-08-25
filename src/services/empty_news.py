@@ -42,10 +42,22 @@ _KO_ZERO_RESULTS = (
     "아래 결론에는 뉴스 근거를 반영하지 않았습니다."
 )
 
+# fork VN: bat buoc phai co, vi guard ben duoi raise RuntimeError luc IMPORT neu
+# _DISCLOSURES khong phu het SUPPORTED_REPORT_LANGUAGES.
+_VI_NOT_CONFIGURED = (
+    "⚠️ Chưa cấu hình kênh tìm kiếm tin tức; "
+    "phân tích này không sử dụng bằng chứng từ tin tức."
+)
+_VI_ZERO_RESULTS = (
+    "⚠️ Lần chạy này không lấy được dữ liệu tin tức khả dụng; "
+    "các kết luận bên dưới không sử dụng bằng chứng từ tin tức."
+)
+
 _DISCLOSURES = {
     "zh": (_ZH_NOT_CONFIGURED, _ZH_ZERO_RESULTS),
     "en": (_EN_NOT_CONFIGURED, _EN_ZERO_RESULTS),
     "ko": (_KO_NOT_CONFIGURED, _KO_ZERO_RESULTS),
+    "vi": (_VI_NOT_CONFIGURED, _VI_ZERO_RESULTS),
 }
 
 if set(_DISCLOSURES) != set(SUPPORTED_REPORT_LANGUAGES):
