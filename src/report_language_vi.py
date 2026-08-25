@@ -36,6 +36,43 @@ from typing import Dict
 # 1. Bản dịch nhãn canonical  (bơm vào các dict ``*_TRANSLATIONS``)
 # ---------------------------------------------------------------------------
 VI_TRANSLATIONS: Dict[str, Dict[str, str]] = {
+    # --- v3.27.0: multi-strategy opinion synthesis ---
+    "_CONFLICT_SEVERITY_TRANSLATIONS": {
+        "none": "Không",
+        "low": "Thấp",
+        "medium": "Trung bình",
+        "high": "Cao",
+    },
+    "_CONSENSUS_LEVEL_TRANSLATIONS": {
+        "high": "Cao",
+        "medium": "Trung bình",
+        "low": "Thấp",
+        "insufficient": "Không đủ bằng chứng",
+    },
+    "_STRATEGY_SIGNAL_TRANSLATIONS": {
+        "strong_buy": "Mua mạnh",
+        "buy": "Mua",
+        "hold": "Nắm giữ",
+        "sell": "Bán",
+        "strong_sell": "Bán mạnh",
+    },
+    "_STRATEGY_SKILL_TRANSLATIONS": {
+        "bull_trend": "Xu hướng tăng mặc định",
+        "hot_theme": "Chủ đề nóng",
+        "volume_breakout": "Bứt phá kèm khối lượng",
+        "ma_golden_cross": "Giao cắt vàng đường MA",
+        "growth_quality": "Chất lượng tăng trưởng",
+        "bottom_volume": "Khối lượng tại đáy",
+        "box_oscillation": "Dao động trong hộp",
+        "chan_theory": "Cấu trúc lý thuyết Chan",
+        "dragon_head": "Chiến pháp cổ phiếu dẫn dắt",
+        "emotion_cycle": "Chu kỳ tâm lý",
+        "event_driven": "Dẫn dắt bởi sự kiện",
+        "expectation_repricing": "Định giá lại kỳ vọng",
+        "one_yang_three_yin": "Một dương ba âm",
+        "shrink_pullback": "Điều chỉnh kèm khối lượng thấp",
+        "wave_theory": "Lý thuyết sóng",
+    },
     "_BIAS_STATUS_TRANSLATIONS": {
         "safe": "An toàn",
         "caution": "Cảnh giác",
@@ -137,6 +174,17 @@ VI_LANGUAGE_ALIASES: Dict[str, str] = {
 #    và dễ thêm ngôn ngữ thứ tư hơn.
 # ---------------------------------------------------------------------------
 VI_REPORT_LABELS: Dict[str, str] = {
+    # --- v3.27.0: nhan multi-strategy synthesis ---
+    "strategy_synthesis_heading": "Tổng hợp đa chiến lược",
+    "strategy_summary_label": "Tóm tắt chiến lược",
+    "strategy_final_signal_label": "Tín hiệu cuối cùng",
+    "strategy_consensus_level_label": "Mức đồng thuận",
+    "strategy_conflict_label": "Mức xung đột",
+    "strategy_confidence_label": "Độ tin cậy",
+    "strategy_supporting_skills_label": "Chiến lược ủng hộ",
+    "strategy_opposing_skills_label": "Chiến lược phản đối",
+    "strategy_invalid_opinions_label": "Ý kiến không hợp lệ",
+    "none_label": "Không có",
     # --- v3.25.0: dong tien 3 nhom to chuc (dac thu thi truong Dai Loan) ---
     "institutional_flow_heading": "Động thái ba nhóm tổ chức",
     "institutional_flow_note": "Số dương = mua ròng, số âm = bán ròng; đơn vị: cổ phiếu.",
