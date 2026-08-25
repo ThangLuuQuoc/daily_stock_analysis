@@ -47,6 +47,9 @@ log "Checking python-multipart availability..."
 log "Checking AlphaSift adapter availability..."
 "${PYTHON_BIN}" -c "import alphasift.dsa_adapter"
 
+log "Checking orjson availability..."
+"${PYTHON_BIN}" -c "import orjson"
+
 if [[ -d "${ROOT_DIR}/dist/backend" ]]; then
   rm -rf "${ROOT_DIR}/dist/backend"
 fi
@@ -92,6 +95,7 @@ hidden_imports=(
   "src.services.alphasift_service"
   "alphasift"
   "alphasift.dsa_adapter"
+  "orjson"
   "uvicorn.logging"
   "uvicorn.loops"
   "uvicorn.loops.auto"
@@ -136,13 +140,15 @@ if ! "${packaged_entry}" --help >/tmp/alphasift-packaged-help.log 2>&1; then
   exit 1
 fi
 
-if DSA_PACKAGED_ALPHASIFT_IMPORT_PROBE=1 "${packaged_entry}" >/tmp/alphasift-packaged-import.log 2>&1; then
-  cat /tmp/alphasift-packaged-import.log
-else
-  echo "ERROR: packaged backend artifact cannot import alphasift.dsa_adapter."
-  cat /tmp/alphasift-packaged-import.log
-  exit 1
-fi
+for module in alphasift.dsa_adapter orjson; do
+  if DSA_PACKAGED_IMPORT_PROBE="${module}" "${packaged_entry}" >/tmp/dsa-packaged-import.log 2>&1; then
+    cat /tmp/dsa-packaged-import.log
+  else
+    echo "ERROR: packaged backend artifact cannot import ${module}."
+    cat /tmp/dsa-packaged-import.log
+    exit 1
+  fi
+done
 
 log "Verifying packaged AkShare calendar data..."
 packaged_akshare_calendar="${packaged_root}/_internal/akshare/file_fold/calendar.json"

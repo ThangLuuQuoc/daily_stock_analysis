@@ -135,8 +135,8 @@ class TestReportRenderer(unittest.TestCase):
         self.assertIn("作战计划", out)
         self.assertNotIn("盘中决策护栏", out)
 
-    def test_render_markdown_keeps_decision_signal_out_of_summary(self) -> None:
-        """Markdown summary stays compact while full details keep DecisionSignal excerpts."""
+    def test_render_markdown_omits_decision_signal_excerpt(self) -> None:
+        """Markdown reports omit the duplicated DecisionSignal excerpt."""
         r = _with_decision_signal_summary(_make_result())
 
         summary_out = render("markdown", [r], summary_only=True)
@@ -145,12 +145,8 @@ class TestReportRenderer(unittest.TestCase):
 
         full_out = render("markdown", [r], summary_only=False)
         self.assertIsNotNone(full_out)
-        summary_section, detail_section = full_out.split("---", 1)
-        self.assertNotIn("AI 决策信号", summary_section)
-        self.assertIn("AI 决策信号", detail_section)
-        self.assertIn("动作: 卖出", detail_section)
-        self.assertIn("周期: 1d", detail_section)
-        self.assertIn("理由: 技术面走弱", detail_section)
+        self.assertNotIn("AI 决策信号", full_out)
+        self.assertNotIn("理由: 技术面走弱", full_out)
 
     def test_render_markdown_phase_decision_section(self) -> None:
         """Markdown renders phase_decision when present."""
@@ -209,8 +205,8 @@ class TestReportRenderer(unittest.TestCase):
         self.assertIsNotNone(out)
         self.assertIn("贵州茅台", out)
 
-    def test_render_wechat_keeps_decision_signal_out_of_summary(self) -> None:
-        """Wechat summary-only stays compact while full details keep DecisionSignal excerpts."""
+    def test_render_wechat_omits_decision_signal_excerpt(self) -> None:
+        """Wechat reports omit the duplicated DecisionSignal excerpt."""
         r = _with_decision_signal_summary(_make_result())
 
         summary_out = render("wechat", [r], summary_only=True)
@@ -219,10 +215,8 @@ class TestReportRenderer(unittest.TestCase):
 
         full_out = render("wechat", [r], summary_only=False)
         self.assertIsNotNone(full_out)
-        self.assertIn("AI 决策信号", full_out)
-        self.assertIn("动作: 卖出", full_out)
-        self.assertIn("周期: 1d", full_out)
-        self.assertIn("理由: 技术面走弱", full_out)
+        self.assertNotIn("AI 决策信号", full_out)
+        self.assertNotIn("理由: 技术面走弱", full_out)
 
     def test_render_brief(self) -> None:
         """Brief platform renders 3-5 sentence summary."""
