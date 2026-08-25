@@ -778,6 +778,22 @@ class TestMarketReviewFieldsRegistered(unittest.TestCase):
         self.assertEqual(field["validation"]["enum"], ["green_up", "red_up"])
         self.assertFalse(field["is_sensitive"])
 
+    def test_market_review_region_field_definition_exists(self):
+        field = get_field_definition("MARKET_REVIEW_REGION")
+        self.assertEqual(field["category"], "system")
+        self.assertEqual(field["data_type"], "string")
+        self.assertEqual(field["ui_control"], "text")
+        self.assertEqual(field["default_value"], "cn")
+        self.assertEqual(
+            field["validation"]["allowed_values"],
+            ["cn", "hk", "us", "jp", "kr", "both"],
+        )
+        self.assertEqual(
+            field["validation"]["delimiter"],
+            ",",
+        )
+        self.assertFalse(field["is_sensitive"])
+
     def test_daily_market_context_field_definition_exists(self):
         field = get_field_definition("DAILY_MARKET_CONTEXT_ENABLED")
         self.assertEqual(field["category"], "system")
@@ -793,6 +809,7 @@ class TestMarketReviewFieldsRegistered(unittest.TestCase):
         field_keys = {f["key"] for f in system_cat["fields"]}
         self.assertIn("MARKET_REVIEW_COLOR_SCHEME", field_keys)
         self.assertIn("DAILY_MARKET_CONTEXT_ENABLED", field_keys)
+        self.assertIn("MARKET_REVIEW_REGION", field_keys)
 
 
 if __name__ == "__main__":

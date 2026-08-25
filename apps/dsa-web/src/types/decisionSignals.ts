@@ -10,11 +10,13 @@ export type DecisionSignalSourceType = 'analysis' | 'agent' | 'alert' | 'market_
 export type DecisionSignalStatus = 'active' | 'expired' | 'invalidated' | 'closed' | 'archived';
 export type DecisionSignalPlanQuality = 'complete' | 'partial' | 'minimal' | 'unknown';
 export type DecisionSignalHorizon = 'intraday' | '1d' | '3d' | '5d' | '10d' | 'swing' | 'long';
-export type DecisionSignalMarket = 'cn' | 'hk' | 'us' | 'jp' | 'kr';
+export type DecisionSignalMarket = 'cn' | 'hk' | 'us' | 'jp' | 'kr' | 'tw';
 export type DecisionSignalOutcomeEvalStatus = 'completed' | 'unable';
 export type DecisionSignalOutcomeValue = 'hit' | 'miss' | 'neutral';
 export type DecisionSignalFeedbackValue = 'useful' | 'not_useful';
 export type DecisionSignalFeedbackSource = 'web' | 'api';
+export type DecisionProfile = 'conservative' | 'balanced' | 'aggressive';
+export type DecisionProfileDisplay = DecisionProfile | 'unknown';
 
 export interface DecisionSignalItem {
   id: number;

@@ -86,6 +86,26 @@ class AgentModelsApiTestCase(unittest.TestCase):
         self.assertEqual(deployments[0]["source"], "llm_channels")
         self.assertEqual(deployments[0]["api_base"], "https://api.example.com/v1")
 
+    def test_models_endpoint_does_not_return_hermes_only_deployment(self) -> None:
+        config = _build_config(
+            litellm_model="openai/hermes-agent",
+            llm_channels=[{"name": "hermes"}],
+            llm_models_source="llm_channels",
+            llm_model_list=[
+                {
+                    "model_name": "openai/hermes-agent",
+                    "litellm_params": {
+                        "model": "openai/hermes-agent",
+                        "api_key": "secret-h",
+                        "api_base": "http://127.0.0.1:8642/v1",
+                    },
+                    "model_info": {"dsa_channel": "hermes"},
+                }
+            ],
+        )
+
+        self.assertEqual(list_agent_model_deployments(config), [])
+
     def test_models_endpoint_uses_agent_primary_override_for_primary_marker(self) -> None:
         config = _build_config(
             litellm_model="gemini/gemini-2.5-flash",

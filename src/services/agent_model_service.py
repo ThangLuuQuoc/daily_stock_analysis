@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from src.config import get_effective_agent_models_to_try, get_effective_agent_primary_model
+from src.agent.litellm_route_resolution import resolve_agent_litellm_route
 from src.llm.backend_registry import CODEX_CLI_BACKEND_ID
 
 
@@ -35,11 +36,13 @@ def _get_model_provider(model_name: str) -> str:
 
 def _build_non_legacy_deployments(config) -> List[Dict[str, Any]]:
     source = _get_models_source(config)
-    primary_model = get_effective_agent_primary_model(config)
-    fallback_models = set(get_effective_agent_models_to_try(config)[1:])
+    resolution = resolve_agent_litellm_route(config)
+    primary_model = resolution.primary_model or get_effective_agent_primary_model(config)
+    fallback_models = set((resolution.models_to_try or [])[1:])
+    model_list = resolution.model_list
     deployments: List[Dict[str, Any]] = []
 
-    for index, entry in enumerate(getattr(config, "llm_model_list", []) or []):
+    for index, entry in enumerate(model_list):
         params = entry.get("litellm_params", {}) or {}
         model_name = str(params.get("model") or "").strip()
         if not model_name or model_name.startswith("__legacy_"):

@@ -382,6 +382,7 @@ class DecisionSignalService:
                 trace_id=str(getattr(record, "query_id", "") or source_report_id),
                 query_source="history",
                 report_type=str(getattr(record, "report_type", "") or "simple"),
+                profile_source="backfill_defaulted",
             )
             if payload is None:
                 return
@@ -866,7 +867,7 @@ class DecisionSignalService:
     def _normalize_market(value: Any) -> str:
         market = str(value or "").strip().lower()
         if market not in VALID_MARKETS:
-            raise ValueError("market must be one of cn, hk, us, jp, kr")
+            raise ValueError("market must be one of cn, hk, us, jp, kr, tw")
         return market
 
     @classmethod

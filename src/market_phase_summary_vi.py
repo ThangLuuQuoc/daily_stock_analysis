@@ -37,6 +37,7 @@ MARKET_LABELS_VI: Dict[str, str] = {
     "hk": "Hồng Kông",
     "us": "Mỹ",
     "vn": "Việt Nam",
+    "tw": "Đài Loan",   # v3.24.0 mo rong sang thi truong Dai Loan
 }
 
 # Nguồn dữ liệu hiển thị cho người dùng.

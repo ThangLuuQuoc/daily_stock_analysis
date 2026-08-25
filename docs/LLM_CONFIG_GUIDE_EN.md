@@ -211,6 +211,18 @@ LLM_OLLAMA_MODELS=qwen3:8b,llama3.2
 LITELLM_MODEL=ollama/qwen3:8b
 ```
 
+### Example: Hermes Local HTTP Generation (Phase 3)
+```env
+LLM_CHANNELS=hermes
+LLM_HERMES_PROTOCOL=openai
+LLM_HERMES_BASE_URL=http://127.0.0.1:8642/v1
+LLM_HERMES_API_KEY=sk-local-hermes
+LLM_HERMES_MODELS=hermes-agent
+LITELLM_MODEL=openai/hermes-agent
+```
+
+`hermes` is a reserved channel name for local loopback `/v1` OpenAI-compatible generation. Phase 3 only verifies regular analysis and JSON output. It does not support Stream/SSE, tools, Vision, Agent tools, remote Hermes, or process lifecycle management. Use exactly one `LLM_HERMES_API_KEY`; do not configure `LLM_HERMES_API_KEYS` or `LLM_HERMES_EXTRA_HEADERS`. If enabled Hermes config is invalid, DSA blocks legacy provider silent fallback so requests do not unexpectedly switch to an external model. When the Web settings page saves the reserved Hermes channel, it explicitly clears stale `LLM_HERMES_API_KEYS` / `LLM_HERMES_EXTRA_HEADERS` values and returns a warning. To recover previous values, restore them from a `.env` backup, Git history, or a desktop export backup, but Phase 3 will still reject non-empty multi-key or extra-header Hermes settings.
+
 ### MiniMax Model Naming in Channel Mode
 
 - If you access MiniMax through an OpenAI-compatible channel, enter the model as `minimax/<model-name>` in the channel model list, for example `minimax/MiniMax-M1`.

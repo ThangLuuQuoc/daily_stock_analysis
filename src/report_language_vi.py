@@ -137,6 +137,17 @@ VI_LANGUAGE_ALIASES: Dict[str, str] = {
 #    và dễ thêm ngôn ngữ thứ tư hơn.
 # ---------------------------------------------------------------------------
 VI_REPORT_LABELS: Dict[str, str] = {
+    # --- v3.24.0: signal attribution + industry/concept boards ---
+    "signal_attribution_heading": "Phân tích quy kết tín hiệu",
+    "attribution_weights_label": "Trọng số quy kết",
+    "technical_indicators_label": "Chỉ báo kỹ thuật",
+    "news_sentiment_label": "Tin tức và tâm lý",
+    "fundamentals_label": "Yếu tố cơ bản",
+    "market_conditions_label": "Bối cảnh thị trường",
+    "strongest_bullish_signal_label": "Tín hiệu tăng giá mạnh nhất",
+    "strongest_bearish_signal_label": "Tín hiệu giảm giá mạnh nhất",
+    "industry_boards_heading": "Nhóm ngành",
+    "concept_boards_heading": "Nhóm chủ đề",
     "dashboard_title": "Bảng điều khiển quyết định",
     "brief_title": "Báo cáo quyết định",
     "analyzed_prefix": "Đã phân tích",

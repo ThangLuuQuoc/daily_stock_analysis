@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Literal, Mapping, Optional
 
 from data_provider.base import normalize_stock_code
 
@@ -13,10 +13,15 @@ from src.analyzer import AnalysisResult
 from src.core.trading_calendar import get_market_for_stock
 from src.schemas.decision_action import build_action_fields
 from src.services.decision_signal_service import DecisionSignalService
+from src.services.portfolio_service import VALID_MARKETS
 from src.utils.sniper_points import extract_sniper_points
 
 
 logger = logging.getLogger(__name__)
+
+ProfileSource = Literal["auto_default", "backfill_defaulted", "legacy_unknown"]
+
+_PROFILE_SOURCES = frozenset({"auto_default", "backfill_defaulted", "legacy_unknown"})
 
 _CONFIDENCE_MAP = {
     "高": 0.8,
@@ -38,11 +43,14 @@ def build_decision_signal_payload_from_report(
     trace_id: str,
     query_source: str,
     report_type: str,
+    profile_source: ProfileSource,
 ) -> Dict[str, Any] | None:
     """Build a DecisionSignal payload from a completed stock analysis report."""
 
     if result is None or not getattr(result, "success", True):
         return None
+    if profile_source not in _PROFILE_SOURCES:
+        raise ValueError(f"invalid profile_source: {profile_source}")
 
     action_fields = build_action_fields(
         operation_advice=getattr(result, "operation_advice", None),
@@ -59,6 +67,17 @@ def build_decision_signal_payload_from_report(
     if not market:
         logger.warning("Skip decision signal extraction: unrecognized market stock_code=%s", raw_code)
         return None
+    if market not in VALID_MARKETS:
+        # A market the data layer recognizes but the decision-signal service
+        # layer does not accept (e.g. a market added to detection ahead of
+        # VALID_MARKETS). Skip gracefully instead of letting create_signal
+        # raise a swallowed ValueError + noisy traceback.
+        logger.info(
+            "Skip decision signal extraction: market=%s not yet wired for signals stock_code=%s",
+            market,
+            raw_code,
+        )
+        return None
 
     dashboard = _as_mapping(getattr(result, "dashboard", None))
     sniper_points = extract_sniper_points(result)
@@ -72,6 +91,11 @@ def build_decision_signal_payload_from_report(
         "decision_type": getattr(result, "decision_type", None),
         "report_confidence_level": getattr(result, "confidence_level", None),
         "report_language": getattr(result, "report_language", None),
+        "decision_profile": "balanced",
+        "profile_source": profile_source,
+        "profile_policy_version": "decision-profile-v1",
+        "signal_generation_version": "legacy-report-extractor-v1",
+        "decision_signal_metadata_version": "decision-signal-metadata-v1",
     }
     market_phase_summary = _extract_market_phase_summary(context_snapshot, result)
     if market_phase_summary:
@@ -120,6 +144,7 @@ def extract_and_persist_from_analysis_result(
     trace_id: str,
     query_source: str,
     report_type: str,
+    profile_source: ProfileSource,
     service: Optional[DecisionSignalService] = None,
 ) -> Dict[str, Any] | None:
     """Best-effort extract and persist a DecisionSignal from an analysis result."""
@@ -133,6 +158,7 @@ def extract_and_persist_from_analysis_result(
             trace_id=trace_id,
             query_source=query_source,
             report_type=report_type,
+            profile_source=profile_source,
         )
         if payload is None:
             return None

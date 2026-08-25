@@ -2,11 +2,14 @@
 """Unit tests for system configuration service."""
 
 import os
+import json
+import logging
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 
 import requests
@@ -15,7 +18,7 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.config import ANSPIRE_LLM_MODEL_DEFAULT, Config
+from src.config import ANSPIRE_LLM_MODEL_DEFAULT, DEFAULT_ALPHASIFT_INSTALL_SPEC, Config
 from src.core.config_manager import ConfigManager
 from src.services.system_config_service import ConfigConflictError, ConfigImportError, SystemConfigService
 
@@ -79,6 +82,517 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(items["ALPHASIFT_INSTALL_SPEC"]["value"], payload["mask_token"])
         self.assertTrue(items["ALPHASIFT_INSTALL_SPEC"]["is_masked"])
         self.assertTrue(items["ALPHASIFT_INSTALL_SPEC"]["schema"]["is_sensitive"])
+
+    def test_get_config_masks_hermes_secret_fields(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LLM_CHANNELS=hermes",
+            "LLM_HERMES_API_KEY=sk-hermes-secret-value",
+            "LLM_HERMES_API_KEYS=sk-old-secret-value",
+            "LLM_HERMES_EXTRA_HEADERS={\"Authorization\":\"Bearer secret\"}",
+        )
+
+        payload = self.service.get_config(include_schema=True)
+        items = {item["key"]: item for item in payload["items"]}
+
+        self.assertEqual(items["LLM_HERMES_API_KEY"]["value"], payload["mask_token"])
+        self.assertTrue(items["LLM_HERMES_API_KEY"]["is_masked"])
+        self.assertEqual(items["LLM_HERMES_API_KEYS"]["value"], payload["mask_token"])
+        self.assertTrue(items["LLM_HERMES_API_KEYS"]["is_masked"])
+        self.assertEqual(items["LLM_HERMES_EXTRA_HEADERS"]["value"], payload["mask_token"])
+        self.assertTrue(items["LLM_HERMES_EXTRA_HEADERS"]["is_masked"])
+
+    def test_hermes_saved_secret_changed_port_does_not_send_request(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LLM_CHANNELS=hermes",
+            "LLM_HERMES_PROTOCOL=openai",
+            "LLM_HERMES_BASE_URL=http://127.0.0.1:8642/v1",
+            "LLM_HERMES_API_KEY=sk-hermes-secret-value",
+        )
+
+        with patch("src.services.system_config_service.requests.Session") as session_cls:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:9999/v1",
+                api_key="******",
+                models=["hermes-agent"],
+                use_saved_secret=True,
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "saved_secret_scope_mismatch")
+        session_cls.assert_not_called()
+
+    def test_hermes_saved_secret_runtime_env_cannot_rebind_endpoint(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LLM_CHANNELS=hermes",
+            "LLM_HERMES_PROTOCOL=openai",
+            "LLM_HERMES_BASE_URL=http://127.0.0.1:8642/v1",
+            "LLM_HERMES_API_KEY=saved-secret-token",
+        )
+
+        with patch.dict(os.environ, {"LLM_HERMES_BASE_URL": "http://127.0.0.1:9999/v1"}, clear=False), \
+             patch("src.services.system_config_service.requests.Session") as session_cls:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:9999/v1",
+                api_key="******",
+                models=["hermes-agent"],
+                use_saved_secret=True,
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "saved_secret_scope_mismatch")
+        self.assertNotIn("saved-secret-token", str(result))
+        session_cls.assert_not_called()
+
+    def test_hermes_model_discovery_uses_no_proxy_session(self) -> None:
+        observed: Dict[str, Any] = {}
+
+        class FakeSession:
+            def __init__(self) -> None:
+                self.trust_env = True
+
+            def get(self, url: str, **kwargs: Any) -> Any:
+                observed["url"] = url
+                observed["trust_env"] = self.trust_env
+                observed["headers"] = kwargs.get("headers") or {}
+                return SimpleNamespace(
+                    status_code=200,
+                    ok=True,
+                    json=lambda: {"data": [{"id": "hermes-agent"}]},
+                )
+
+            def close(self) -> None:
+                observed["closed"] = True
+
+        with patch("src.services.system_config_service.requests.Session", side_effect=FakeSession), \
+             patch("src.services.system_config_service.requests.get") as requests_get:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://localhost:8642/v1",
+                api_key="sk-hermes-secret-value",
+                models=["hermes-agent"],
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(observed["url"], "http://127.0.0.1:8642/v1/models")
+        self.assertFalse(observed["trust_env"])
+        self.assertEqual(observed["headers"]["Authorization"], "Bearer sk-hermes-secret-value")
+        self.assertTrue(observed["closed"])
+        requests_get.assert_not_called()
+
+    def test_hermes_model_discovery_invalid_url_fails_before_request(self) -> None:
+        with patch("src.services.system_config_service.requests.Session") as session_cls:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1?next=proxy",
+                api_key="saved-secret-token",
+                models=["hermes-agent"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "invalid_config")
+        self.assertEqual(result["details"]["reason"], "invalid_hermes_url")
+        self.assertNotIn("saved-secret-token", rendered)
+        session_cls.assert_not_called()
+
+    def test_hermes_model_discovery_http_error_redacts_non_sk_secret(self) -> None:
+        class FakeSession:
+            def __init__(self) -> None:
+                self.trust_env = True
+
+            def get(self, *_args: Any, **_kwargs: Any) -> Any:
+                return SimpleNamespace(
+                    status_code=500,
+                    ok=False,
+                    json=lambda: {"error": {"message": "upstream saw saved-secret-token"}},
+                    text="upstream saw saved-secret-token",
+                )
+
+            def close(self) -> None:
+                pass
+
+        with patch("src.services.system_config_service.requests.Session", side_effect=FakeSession):
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="saved-secret-token",
+                models=["hermes-agent"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertFalse(result["success"])
+        self.assertNotIn("saved-secret-token", rendered)
+        self.assertNotIn("Bearer saved-secret-token", rendered)
+        self.assertIn("[REDACTED]", rendered)
+
+    def test_llm_result_redacts_raw_comma_secret_and_segments(self) -> None:
+        raw_secret = "saved-secret-token,second-part"
+        redactions = self.service._build_redaction_values(raw_secret)
+        variants = [
+            "Bearer saved-secret-token,second-part",
+            "Bearer saved-secret-token, second-part",
+            "Bearer saved-secret-token ,second-part",
+            "Authorization: Bearer saved-secret-token,   second-part",
+            "upstream saw saved-secret-token, second-part",
+        ]
+
+        result = self.service._build_llm_channel_result(
+            success=False,
+            message="; ".join(variants),
+            error=" | ".join(variants),
+            stage="model_discovery",
+            error_code="network_error",
+            retryable=False,
+            details={
+                "raw": raw_secret,
+                "variants": variants,
+                "first": "saved-secret-token",
+                "second": "second-part",
+            },
+            capability_results={
+                "json": {
+                    "status": "failed",
+                    "message": variants[1],
+                    "details": {"echo": variants[3]},
+                }
+            },
+            resolved_protocol="openai",
+            models=[],
+            latency_ms=None,
+            redaction_values=redactions,
+        )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertNotIn(raw_secret, rendered)
+        for variant in variants:
+            self.assertNotIn(variant, rendered)
+        self.assertNotIn("saved-secret-token", rendered)
+        self.assertNotIn("second-part", rendered)
+        self.assertIn("[REDACTED]", rendered)
+
+    def test_llm_result_recursively_redacts_models_details_and_capabilities(self) -> None:
+        raw_secret = "saved-secret-token,second-part"
+        redactions = self.service._build_redaction_values(raw_secret)
+
+        details = self.service._sanitize_llm_details(
+            {
+                "items": [
+                    {"message": "saved-secret-token"},
+                    [{"nested": "Bearer saved-secret-token, second-part"}],
+                ],
+                "saved-secret-token": "second-part",
+            },
+            redaction_values=redactions,
+        )
+        result = self.service._build_llm_channel_result(
+            success=False,
+            message="upstream saw saved-secret-token, second-part",
+            error="Authorization: Bearer saved-secret-token,   second-part",
+            stage="model_discovery",
+            error_code="network_error",
+            retryable=False,
+            details=details,
+            resolved_protocol="openai",
+            resolved_model="saved-secret-token",
+            models=["saved-secret-token", ["second-part"]],
+            capability_results={
+                "json": {
+                    "status": "failed",
+                    "details": {"items": [{"message": "saved-secret-token"}]},
+                }
+            },
+            redaction_values=redactions,
+        )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertNotIn(raw_secret, rendered)
+        self.assertNotIn("saved-secret-token, second-part", rendered)
+        self.assertNotIn("saved-secret-token", rendered)
+        self.assertNotIn("second-part", rendered)
+        self.assertIn("[REDACTED]", rendered)
+
+    def test_hermes_model_discovery_request_exception_redacts_response_and_logs(self) -> None:
+        class FakeSession:
+            def __init__(self) -> None:
+                self.trust_env = True
+
+            def get(self, *_args: Any, **_kwargs: Any) -> Any:
+                raise requests.RequestException("proxy saw saved-secret-token")
+
+            def close(self) -> None:
+                pass
+
+        with patch("src.services.system_config_service.requests.Session", side_effect=FakeSession), \
+             self.assertLogs("src.services.system_config_service", level="WARNING") as logs:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="saved-secret-token",
+                models=["hermes-agent"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        log_text = "\n".join(logs.output)
+        self.assertFalse(result["success"])
+        self.assertNotIn("saved-secret-token", rendered)
+        self.assertNotIn("saved-secret-token", log_text)
+        self.assertIn("[REDACTED]", rendered)
+        self.assertIn("[REDACTED]", log_text)
+
+    def test_hermes_request_exception_redacts_comma_secret_variants_from_logs(self) -> None:
+        raw_secret = "saved-secret-token,second-part"
+        variants = [
+            "Bearer saved-secret-token,second-part",
+            "Bearer saved-secret-token, second-part",
+            "Bearer saved-secret-token ,second-part",
+            "Authorization: Bearer saved-secret-token,   second-part",
+            "upstream saw saved-secret-token, second-part",
+        ]
+        redactions = self.service._build_redaction_values(raw_secret)
+        sanitized = self.service._sanitize_llm_error_text(
+            " | ".join(variants),
+            redaction_values=redactions,
+        )
+        with self.assertLogs("src.services.system_config_service", level="WARNING") as logs:
+            logging.getLogger("src.services.system_config_service").warning(
+                "LLM channel model discovery failed for hermes: %s",
+                sanitized,
+            )
+
+        log_text = "\n".join(logs.output)
+        self.assertNotIn(raw_secret, log_text)
+        self.assertNotIn("saved-secret-token, second-part", log_text)
+        self.assertNotIn("saved-secret-token", log_text)
+        self.assertNotIn("second-part", log_text)
+        for variant in variants:
+            self.assertNotIn(variant, log_text)
+        self.assertIn("[REDACTED]", log_text)
+
+    def test_hermes_channel_test_invalid_url_fails_before_completion(self) -> None:
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client") as no_proxy_client, \
+             patch("litellm.completion") as completion:
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1#fragment",
+                api_key="saved-secret-token",
+                models=["hermes-agent"],
+                capability_checks=["json"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "invalid_config")
+        self.assertEqual(result["details"]["reason"], "invalid_hermes_url")
+        self.assertEqual(result["capability_results"]["json"]["status"], "skipped")
+        self.assertNotIn("saved-secret-token", rendered)
+        no_proxy_client.assert_not_called()
+        completion.assert_not_called()
+
+    def test_hermes_runtime_only_masked_key_is_not_sent_for_channel_test(self) -> None:
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client") as no_proxy_client, \
+             patch("litellm.completion") as completion:
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="******",
+                models=["hermes-agent"],
+                use_saved_secret=False,
+                capability_checks=["json"],
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "runtime_secret_not_reusable")
+        self.assertEqual(result["details"]["reason"], "runtime_secret_not_reusable")
+        self.assertEqual(result["capability_results"]["json"]["status"], "skipped")
+        no_proxy_client.assert_not_called()
+        completion.assert_not_called()
+
+    def test_hermes_masked_key_is_not_sent_for_model_discovery(self) -> None:
+        with patch("src.services.system_config_service.requests.Session") as session_cls:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="******",
+                models=["hermes-agent"],
+                use_saved_secret=False,
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "runtime_secret_not_reusable")
+        self.assertEqual(result["details"]["reason"], "runtime_secret_not_reusable")
+        session_cls.assert_not_called()
+
+    def test_hermes_saved_literal_masked_key_is_not_reused(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LLM_CHANNELS=hermes",
+            "LLM_HERMES_BASE_URL=http://127.0.0.1:8642/v1",
+            "LLM_HERMES_API_KEY=******",
+        )
+
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client") as no_proxy_client, \
+             patch("litellm.completion") as completion:
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="******",
+                models=["hermes-agent"],
+                use_saved_secret=True,
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "runtime_secret_not_reusable")
+        no_proxy_client.assert_not_called()
+        completion.assert_not_called()
+
+    def test_hermes_channel_test_rejects_comma_api_key_before_outbound(self) -> None:
+        raw_key = "key-a,key-b"
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client") as no_proxy_client, \
+             patch("litellm.completion") as completion:
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key=raw_key,
+                models=["hermes-agent"],
+                capability_checks=["json"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "invalid_config")
+        self.assertEqual(result["details"]["reason"], "multiple_api_keys")
+        self.assertNotIn(raw_key, rendered)
+        self.assertNotIn("key-a", rendered)
+        self.assertNotIn("key-b", rendered)
+        no_proxy_client.assert_not_called()
+        completion.assert_not_called()
+
+    def test_hermes_model_discovery_rejects_comma_api_key_before_outbound(self) -> None:
+        raw_key = "key-a,key-b"
+        with patch("src.services.system_config_service.requests.Session") as session_cls:
+            result = self.service.discover_llm_channel_models(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key=raw_key,
+                models=["hermes-agent"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "invalid_config")
+        self.assertEqual(result["details"]["reason"], "multiple_api_keys")
+        self.assertNotIn(raw_key, rendered)
+        self.assertNotIn("key-a", rendered)
+        self.assertNotIn("key-b", rendered)
+        session_cls.assert_not_called()
+
+    def test_hermes_unsupported_capabilities_are_skipped_without_probe(self) -> None:
+        no_proxy_calls: List[Dict[str, Any]] = []
+        completion_models: List[str] = []
+
+        @contextmanager
+        def fake_no_proxy_openai_client(**kwargs: Any):
+            no_proxy_calls.append(kwargs)
+            yield object()
+
+        def fake_completion(**kwargs: Any) -> Any:
+            completion_models.append(str(kwargs.get("model") or ""))
+            self.assertFalse(kwargs.get("stream"))
+            self.assertIn("client", kwargs)
+            self.assertNotIn("api_key", kwargs)
+            self.assertNotIn("api_base", kwargs)
+            return self._mock_completion_response("OK")
+
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client", fake_no_proxy_openai_client), \
+             patch("litellm.completion", side_effect=fake_completion):
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="sk-hermes-secret-value",
+                models=["hermes-agent"],
+                capability_checks=["tools", "stream", "vision"],
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(len(no_proxy_calls), 1)
+        self.assertEqual(completion_models, ["openai/hermes-agent"])
+        capability_results = result["capability_results"]
+        self.assertEqual(set(capability_results), {"tools", "stream", "vision"})
+        for capability in ("tools", "stream", "vision"):
+            self.assertEqual(capability_results[capability]["status"], "skipped")
+            self.assertEqual(capability_results[capability]["error_code"], "not_probed")
+
+    def test_hermes_failure_redacts_non_sk_secret_from_response_and_logs(self) -> None:
+        @contextmanager
+        def fake_no_proxy_openai_client(**_kwargs: Any):
+            yield object()
+
+        def fake_completion(**_kwargs: Any) -> Any:
+            raise RuntimeError("upstream echoed saved-secret-token")
+
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client", fake_no_proxy_openai_client), \
+             patch("litellm.completion", side_effect=fake_completion), \
+             self.assertLogs("src.services.system_config_service", level="WARNING") as logs:
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="saved-secret-token",
+                models=["hermes-agent"],
+            )
+
+        self.assertFalse(result["success"])
+        self.assertNotIn("saved-secret-token", str(result))
+        self.assertNotIn("saved-secret-token", "\n".join(logs.output))
+
+    def test_hermes_json_capability_exception_redacts_non_sk_secret(self) -> None:
+        @contextmanager
+        def fake_no_proxy_openai_client(**_kwargs: Any):
+            yield object()
+
+        completion_calls = 0
+
+        def fake_completion(**_kwargs: Any) -> Any:
+            nonlocal completion_calls
+            completion_calls += 1
+            if completion_calls == 1:
+                return self._mock_completion_response("OK")
+            raise RuntimeError("json capability saw saved-secret-token")
+
+        with patch("src.services.system_config_service.open_hermes_no_proxy_client", fake_no_proxy_openai_client), \
+             patch("litellm.completion", side_effect=fake_completion):
+            result = self.service.test_llm_channel(
+                name="hermes",
+                protocol="openai",
+                base_url="http://127.0.0.1:8642/v1",
+                api_key="saved-secret-token",
+                models=["hermes-agent"],
+                capability_checks=["json"],
+            )
+
+        rendered = json.dumps(result, ensure_ascii=False, default=str)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["capability_results"]["json"]["status"], "failed")
+        self.assertNotIn("saved-secret-token", rendered)
+        self.assertIn("[REDACTED]", rendered)
 
     def test_get_config_masks_llm_usage_hmac_secret(self) -> None:
         self._rewrite_env(
@@ -845,7 +1359,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
             "LLM_OPENAI_MODELS=openai/gpt-4o-mini,openai/gpt-4o",
             "LITELLM_FALLBACK_MODELS=openai/gpt-4o-mini,openai/gpt-4o",
             "ALPHASIFT_ENABLED=false",
-            "ALPHASIFT_INSTALL_SPEC=git+https://github.com/ZhuLinsen/alphasift.git@377049857cc04175dc3cca62121ee41adec6cdb8",
+            f"ALPHASIFT_INSTALL_SPEC={DEFAULT_ALPHASIFT_INSTALL_SPEC}",
             "LLM_USAGE_HMAC_SECRET=telemetry-secret",
             "LLM_USAGE_HMAC_KEY_VERSION=test-v1",
             "GEMINI_API_KEY=legacy-secret",
@@ -872,7 +1386,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(current_map["ALPHASIFT_ENABLED"], "true")
         self.assertEqual(
             current_map["ALPHASIFT_INSTALL_SPEC"],
-            "git+https://github.com/ZhuLinsen/alphasift.git@377049857cc04175dc3cca62121ee41adec6cdb8",
+            DEFAULT_ALPHASIFT_INSTALL_SPEC,
         )
         self.assertEqual(current_map["LLM_USAGE_HMAC_SECRET"], "telemetry-secret")
         self.assertEqual(current_map["LLM_USAGE_HMAC_KEY_VERSION"], "test-v1")
@@ -1123,6 +1637,61 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertFalse(validation["valid"])
         self.assertTrue(any(issue["key"] == "LITELLM_MODEL" and issue["code"] == "unknown_model" for issue in validation["issues"]))
 
+    def test_validate_rejects_bare_primary_when_channel_route_is_openai_canonical(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "primary"},
+                {"key": "LLM_PRIMARY_PROTOCOL", "value": "openai"},
+                {"key": "LLM_PRIMARY_API_KEY", "value": "sk-test-value"},
+                {"key": "LLM_PRIMARY_MODELS", "value": "gpt-4o-mini"},
+                {"key": "LITELLM_MODEL", "value": "gpt-4o-mini"},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertTrue(any(issue["key"] == "LITELLM_MODEL" and issue["code"] == "unknown_model" for issue in validation["issues"]))
+
+    def test_validate_rejects_bare_fallback_when_channel_route_is_openai_canonical(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "primary"},
+                {"key": "LLM_PRIMARY_PROTOCOL", "value": "openai"},
+                {"key": "LLM_PRIMARY_API_KEY", "value": "sk-test-value"},
+                {"key": "LLM_PRIMARY_MODELS", "value": "gpt-4o-mini"},
+                {"key": "LITELLM_MODEL", "value": "openai/gpt-4o-mini"},
+                {"key": "LITELLM_FALLBACK_MODELS", "value": "gpt-4o-mini"},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertTrue(
+            any(
+                issue["key"] == "LITELLM_FALLBACK_MODELS"
+                and issue["code"] == "unknown_model"
+                for issue in validation["issues"]
+            )
+        )
+
+    def test_validate_reports_bare_vision_when_channel_route_is_openai_canonical(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "primary"},
+                {"key": "LLM_PRIMARY_PROTOCOL", "value": "openai"},
+                {"key": "LLM_PRIMARY_API_KEY", "value": "sk-test-value"},
+                {"key": "LLM_PRIMARY_MODELS", "value": "gpt-4o-mini"},
+                {"key": "VISION_MODEL", "value": "gpt-4o-mini"},
+            ]
+        )
+
+        self.assertTrue(
+            any(
+                issue["key"] == "VISION_MODEL"
+                and issue["code"] == "unknown_model"
+                for issue in validation["issues"]
+            ),
+            validation["issues"],
+        )
+
     def test_validate_accepts_deepseek_v4_primary_model_for_channel(self) -> None:
         validation = self.service.validate(
             items=[
@@ -1165,6 +1734,129 @@ class SystemConfigServiceTestCase(unittest.TestCase):
 
         self.assertTrue(validation["valid"])
         self.assertEqual(validation["issues"], [])
+
+    def test_validate_rejects_explicit_hermes_only_agent_model(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "hermes"},
+                {"key": "LLM_HERMES_API_KEY", "value": "sk-hermes-test-value"},
+                {"key": "LLM_HERMES_MODELS", "value": "hermes-agent"},
+                {"key": "AGENT_LITELLM_MODEL", "value": "openai/hermes-agent"},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertTrue(
+            any(
+                issue["key"] == "AGENT_LITELLM_MODEL"
+                and issue["code"] == "explicit_agent_model_no_safe_deployment"
+                for issue in validation["issues"]
+            )
+        )
+
+    def test_validate_allows_explicit_mixed_agent_model(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "hermes,remote"},
+                {"key": "LLM_HERMES_API_KEY", "value": "sk-hermes-test-value"},
+                {"key": "LLM_HERMES_MODELS", "value": "shared-route"},
+                {"key": "LLM_REMOTE_PROTOCOL", "value": "openai"},
+                {"key": "LLM_REMOTE_BASE_URL", "value": "https://api.example.com/v1"},
+                {"key": "LLM_REMOTE_API_KEY", "value": "sk-remote-test-value"},
+                {"key": "LLM_REMOTE_MODELS", "value": "shared-route"},
+                {"key": "AGENT_LITELLM_MODEL", "value": "openai/shared-route"},
+            ]
+        )
+
+        self.assertFalse(
+            any(
+                issue["key"] == "AGENT_LITELLM_MODEL"
+                and issue["code"] == "explicit_agent_model_no_safe_deployment"
+                for issue in validation["issues"]
+            ),
+            validation["issues"],
+        )
+
+    def test_validate_rejects_mixed_generation_primary_and_fallback(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "hermes,remote"},
+                {"key": "LLM_HERMES_API_KEY", "value": "sk-hermes-test-value"},
+                {"key": "LLM_HERMES_MODELS", "value": "shared-route"},
+                {"key": "LLM_REMOTE_PROTOCOL", "value": "openai"},
+                {"key": "LLM_REMOTE_BASE_URL", "value": "https://api.example.com/v1"},
+                {"key": "LLM_REMOTE_API_KEY", "value": "sk-remote-test-value"},
+                {"key": "LLM_REMOTE_MODELS", "value": "shared-route"},
+                {"key": "LITELLM_MODEL", "value": "openai/shared-route"},
+                {"key": "LITELLM_FALLBACK_MODELS", "value": "openai/shared-route"},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertTrue(
+            any(
+                issue["key"] == "LITELLM_MODEL"
+                and issue["code"] == "mixed_hermes_route_unsupported"
+                for issue in validation["issues"]
+            )
+        )
+        self.assertTrue(
+            any(
+                issue["key"] == "LITELLM_FALLBACK_MODELS"
+                and issue["code"] == "mixed_hermes_route_unsupported"
+                for issue in validation["issues"]
+            )
+        )
+
+    def test_validate_rejects_bare_mixed_generation_primary_and_fallback(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "hermes,remote"},
+                {"key": "LLM_HERMES_API_KEY", "value": "sk-hermes-test-value"},
+                {"key": "LLM_HERMES_MODELS", "value": "shared-route"},
+                {"key": "LLM_REMOTE_PROTOCOL", "value": "openai"},
+                {"key": "LLM_REMOTE_BASE_URL", "value": "https://api.example.com/v1"},
+                {"key": "LLM_REMOTE_API_KEY", "value": "sk-remote-test-value"},
+                {"key": "LLM_REMOTE_MODELS", "value": "shared-route"},
+                {"key": "LITELLM_MODEL", "value": "shared-route"},
+                {"key": "LITELLM_FALLBACK_MODELS", "value": "shared-route"},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertTrue(
+            any(
+                issue["key"] == "LITELLM_MODEL"
+                and issue["code"] == "mixed_hermes_route_unsupported"
+                for issue in validation["issues"]
+            )
+        )
+        self.assertTrue(
+            any(
+                issue["key"] == "LITELLM_FALLBACK_MODELS"
+                and issue["code"] == "mixed_hermes_route_unsupported"
+                for issue in validation["issues"]
+            )
+        )
+
+    def test_validate_rejects_bare_hermes_vision_model(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "LLM_CHANNELS", "value": "hermes"},
+                {"key": "LLM_HERMES_API_KEY", "value": "sk-hermes-test-value"},
+                {"key": "LLM_HERMES_MODELS", "value": "hermes-agent"},
+                {"key": "VISION_MODEL", "value": "hermes-agent"},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        self.assertTrue(
+            any(
+                issue["key"] == "VISION_MODEL"
+                and issue["code"] == "hermes_vision_unsupported"
+                for issue in validation["issues"]
+            )
+        )
 
     @patch.object(
         Config,
@@ -1232,6 +1924,12 @@ class SystemConfigServiceTestCase(unittest.TestCase):
             context_profile_schema["validation"]["enum"],
             ["cost", "balanced", "long_context_raw_first"],
         )
+        market_review_schema = items["MARKET_REVIEW_REGION"]["schema"]
+        self.assertEqual(
+            market_review_schema["validation"]["allowed_values"],
+            ["cn", "hk", "us", "jp", "kr", "both"],
+        )
+        self.assertEqual(market_review_schema["validation"]["delimiter"], ",")
         self.assertEqual(
             items["AGENT_CONTEXT_COMPRESSION_TRIGGER_TOKENS"]["schema"]["default_value"],
             "",
@@ -1266,6 +1964,14 @@ class SystemConfigServiceTestCase(unittest.TestCase):
 
     def test_validate_accepts_report_language_english(self) -> None:
         validation = self.service.validate(items=[{"key": "REPORT_LANGUAGE", "value": "en"}])
+
+        self.assertTrue(validation["valid"])
+        self.assertEqual(validation["issues"], [])
+
+    def test_validate_accepts_comma_separated_market_review_region(self) -> None:
+        validation = self.service.validate(
+            items=[{"key": "MARKET_REVIEW_REGION", "value": "cn,jp,us"}]
+        )
 
         self.assertTrue(validation["valid"])
         self.assertEqual(validation["issues"], [])
@@ -2138,6 +2844,38 @@ class SystemConfigServiceTestCase(unittest.TestCase):
             "deepseek/deepseek-v4-flash",
         )
 
+    def test_update_warns_when_clearing_unsupported_hermes_keys(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LLM_CHANNELS=hermes",
+            "LLM_HERMES_PROTOCOL=openai",
+            "LLM_HERMES_BASE_URL=http://127.0.0.1:8642/v1",
+            "LLM_HERMES_API_KEY=sk-hermes-test-value",
+            "LLM_HERMES_API_KEYS=sk-old-a,sk-old-b",
+            'LLM_HERMES_EXTRA_HEADERS={"X":"Y"}',
+            "LLM_HERMES_MODELS=hermes-agent",
+        )
+
+        response = self.service.update(
+            config_version=self.manager.get_config_version(),
+            items=[
+                {"key": "LLM_HERMES_API_KEYS", "value": ""},
+                {"key": "LLM_HERMES_EXTRA_HEADERS", "value": ""},
+            ],
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        joined = " | ".join(response["warnings"])
+        self.assertIn("Hermes Phase 3 不支持", joined)
+        self.assertIn("LLM_HERMES_API_KEYS", joined)
+        self.assertIn("LLM_HERMES_EXTRA_HEADERS", joined)
+        self.assertIn("LLM_HERMES_API_KEY", joined)
+        self.assertIn(".env 备份", joined)
+        current_map = self.manager.read_config_map()
+        self.assertEqual(current_map["LLM_HERMES_API_KEYS"], "")
+        self.assertEqual(current_map["LLM_HERMES_EXTRA_HEADERS"], "")
+
     @patch("litellm.completion")
     def test_test_llm_channel_does_not_persist_normalized_kimi_temperature(self, mock_completion) -> None:
         self._rewrite_env("LLM_TEMPERATURE=0.42")
@@ -2940,6 +3678,80 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertIn("主模型 / Agent 主模型 / Vision 模型 / 备选模型中的失效项", warning)
         self.assertIn("桌面端导出备份", warning)
 
+    def test_update_market_review_region_does_not_trigger_runtime_model_cleanup(self) -> None:
+        litellm_config_path = Path(self.temp_dir.name) / "litellm_config.yaml"
+        litellm_config_path.write_text("model_list: []\n", encoding="utf-8")
+
+        self._rewrite_env(
+            "MARKET_REVIEW_REGION=cn",
+            "LITELLM_MODEL=openai/gpt-4o-mini",
+            "AGENT_LITELLM_MODEL=openai/gpt-4o",
+            "LITELLM_FALLBACK_MODELS=openai/gpt-4o-mini,openai/gpt-4o",
+            "VISION_MODEL=openai/gpt-4o",
+            f"LITELLM_CONFIG={litellm_config_path}",
+            "LLM_CHANNELS=openai",
+            "LLM_OPENAI_PROTOCOL=openai",
+            "LLM_OPENAI_BASE_URL=https://llm-openai.example.com/v1",
+            "LLM_OPENAI_API_KEYS=legacy-openai-secret",
+            "LLM_OPENAI_MODELS=openai/gpt-4o-mini,openai/gpt-4o",
+            "OPENAI_BASE_URL=https://openai.example.com/v1",
+            "OPENAI_API_KEY=sk-openai",
+            "OPENAI_MODEL=gpt-4.1",
+            "ANTHROPIC_MODEL=claude-sonnet-4-6",
+        )
+
+        response = self.service.update(
+            config_version=self.manager.get_config_version(),
+            items=[{"key": "MARKET_REVIEW_REGION", "value": "both"}],
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        self.assertIn("MARKET_REVIEW_REGION", response["updated_keys"])
+        current_map = self.manager.read_config_map()
+        self.assertEqual(current_map["MARKET_REVIEW_REGION"], "both")
+        self.assertEqual(current_map["LITELLM_MODEL"], "openai/gpt-4o-mini")
+        self.assertEqual(current_map["AGENT_LITELLM_MODEL"], "openai/gpt-4o")
+        self.assertEqual(current_map["LITELLM_FALLBACK_MODELS"], "openai/gpt-4o-mini,openai/gpt-4o")
+        self.assertEqual(current_map["VISION_MODEL"], "openai/gpt-4o")
+        self.assertEqual(current_map["LITELLM_CONFIG"], str(litellm_config_path))
+        self.assertEqual(current_map["LLM_CHANNELS"], "openai")
+        self.assertEqual(current_map["LLM_OPENAI_PROTOCOL"], "openai")
+        self.assertEqual(current_map["LLM_OPENAI_BASE_URL"], "https://llm-openai.example.com/v1")
+        self.assertEqual(current_map["LLM_OPENAI_API_KEYS"], "legacy-openai-secret")
+        self.assertEqual(current_map["LLM_OPENAI_MODELS"], "openai/gpt-4o-mini,openai/gpt-4o")
+        self.assertEqual(current_map["OPENAI_BASE_URL"], "https://openai.example.com/v1")
+        self.assertEqual(current_map["OPENAI_API_KEY"], "sk-openai")
+        self.assertEqual(current_map["OPENAI_MODEL"], "gpt-4.1")
+        self.assertEqual(current_map["ANTHROPIC_MODEL"], "claude-sonnet-4-6")
+        self.assertFalse(
+            any("已同步清理失效的运行时模型引用" in warning for warning in response["warnings"]),
+            response["warnings"],
+        )
+
+    def test_update_market_review_region_accepts_comma_separated_regions(self) -> None:
+        response = self.service.update(
+            config_version=self.manager.get_config_version(),
+            items=[{"key": "MARKET_REVIEW_REGION", "value": "cn,jp,us"}],
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        self.assertIn("MARKET_REVIEW_REGION", response["updated_keys"])
+        current_map = self.manager.read_config_map()
+        self.assertEqual(current_map["MARKET_REVIEW_REGION"], "cn,jp,us")
+
+    def test_import_env_market_review_region_accepts_comma_separated_regions(self) -> None:
+        response = self.service.import_env(
+            config_version=self.manager.get_config_version(),
+            content="MARKET_REVIEW_REGION=jp,kr\n",
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        current_map = self.manager.read_config_map()
+        self.assertEqual(current_map["MARKET_REVIEW_REGION"], "jp,kr")
+
     def test_import_desktop_env_restores_runtime_models_after_cleanup(self) -> None:
         self._rewrite_env(
             "STOCK_LIST=600519,000001",
@@ -2989,6 +3801,48 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(restored_map["VISION_MODEL"], pre_clear_map["VISION_MODEL"])
         self.assertEqual(restored_map["LITELLM_FALLBACK_MODELS"], pre_clear_map["LITELLM_FALLBACK_MODELS"])
 
+    def test_import_desktop_env_restores_provider_and_base_url_after_provider_cleanup(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LITELLM_MODEL=openai/gpt-4o-mini",
+            "OPENAI_MODEL=gpt-4.1",
+            "OPENAI_BASE_URL=https://openai.example.com/v1",
+            "OPENAI_API_KEY=legacy-openai-key",
+        )
+
+        backup_content = self.service.export_desktop_env()["content"]
+        pre_clear_map = dict(self.manager.read_config_map())
+
+        clear_response = self.service.update(
+            config_version=self.manager.get_config_version(),
+            items=[
+                {"key": "LITELLM_MODEL", "value": ""},
+                {"key": "OPENAI_MODEL", "value": ""},
+                {"key": "OPENAI_BASE_URL", "value": ""},
+                {"key": "OPENAI_API_KEY", "value": ""},
+            ],
+            reload_now=False,
+        )
+        self.assertTrue(clear_response["success"])
+
+        cleared_map = self.manager.read_config_map()
+        self.assertEqual(cleared_map["LITELLM_MODEL"], "")
+        self.assertEqual(cleared_map["OPENAI_MODEL"], "")
+        self.assertEqual(cleared_map["OPENAI_BASE_URL"], "")
+        self.assertEqual(cleared_map["OPENAI_API_KEY"], "")
+
+        restore_payload = self.service.import_desktop_env(
+            config_version=self.manager.get_config_version(),
+            content=backup_content,
+            reload_now=False,
+        )
+        self.assertTrue(restore_payload["success"])
+
+        restored_map = self.manager.read_config_map()
+        self.assertEqual(restored_map["LITELLM_MODEL"], pre_clear_map["LITELLM_MODEL"])
+        self.assertEqual(restored_map["OPENAI_MODEL"], pre_clear_map["OPENAI_MODEL"])
+        self.assertEqual(restored_map["OPENAI_BASE_URL"], pre_clear_map["OPENAI_BASE_URL"])
+        self.assertEqual(restored_map["OPENAI_API_KEY"], pre_clear_map["OPENAI_API_KEY"])
 
     def test_validate_rejects_comma_only_api_key(self) -> None:
         """Whitespace/comma-only api_key must fail validation (P2: parsed-segment check)."""
