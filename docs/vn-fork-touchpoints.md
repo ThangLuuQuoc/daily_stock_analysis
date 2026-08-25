@@ -86,6 +86,36 @@ nhưng chỉ là **stub TradingView** (`return { /* map from stocks + company_ov
 còn bảng `stocks` thì đã đầy đủ. Việc thêm `GET /stocks` chỉ tốn ~35 dòng — rẻ hơn
 nhiều so với giả định lúc đó.
 
+### 1.1d Touchpoint bat buoc khi fork them ngon ngu / region
+
+Ba cho nay **phai cap nhat cung luc** khi fork them `vi` hoac `vn`, neu khong se
+vo lúc chay (khong phai canh bao):
+
+| File | Vi sao bat buoc |
+|---|---|
+| `src/services/empty_news.py` `_DISCLOSURES` | Upstream guard `if set(_DISCLOSURES) != set(SUPPORTED_REPORT_LANGUAGES): raise RuntimeError` chay **luc import**. Quen -> 186 RuntimeError + 88 ImportError day chuyen. |
+| `tests/test_notification_empty_news_disclosure.py` `EXPECTED` | Test upstream duyet `SUPPORTED_REPORT_LANGUAGES` roi tra `EXPECTED[language]` -> KeyError. |
+| `tests/test_config_env_compat.py` (2 assert) | Fork them `vn` vao `MARKET_REVIEW_REGION_ORDER` nen `both` mo rong thanh `cn,hk,us,jp,kr,vn`. Assert cua upstream ky vong khong co `vn`. Day la **doi hanh vi co chu y** cua fork, khong phai bug. |
+
+### 1.1e Frontend: `vi` la overlay tren `en`, khong phai bang day du
+
+`apps/dsa-web/src/i18n/uiText.ts`:
+
+```ts
+const viOverrides: Partial<Record<UiTextKey, string>> = { ... }
+const vi: Record<UiTextKey, string> = { ...en, ...viOverrides }
+```
+
+Ly do: `t()` tra thang `UI_TEXT[lang][key]`, thieu key -> UI hien chu `undefined`.
+Moi lan merge upstream ho them hang chuc key; bat buoc `vi` du thi build vo ngay.
+Phu len `en`: key da dich -> tieng Viet, chua dich -> tieng Anh (dung duoc).
+`VI_TRANSLATION_COVERAGE` theo doi tien do (659/934 sau catch-up v3.31.0).
+
+**QUAN TRONG**: chay `npm install` truoc khi tin ket qua `tsc`. Neu node_modules
+co tsc cu hon `package.json` yeu cau thi `tsc -p` chi bao loi OPTION roi dung —
+KHONG typecheck file nao, va moi loi that bi che. Da xay ra: tsc 5.0.4 vs yeu cau
+5.9.3 che mat 17 loi.
+
 ### 1.2 Config
 
 | File | Vị trí | Loại | Lý do |

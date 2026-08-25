@@ -117,7 +117,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
         self.assertEqual(config.market_review_region, "cn,us,kr")
 
     def test_market_review_region_keeps_legacy_mixed_both_and_empty_token_compatibility(self) -> None:
-        self.assertEqual(Config._parse_market_review_region("both,us"), "cn,hk,us,jp,kr")
+        self.assertEqual(Config._parse_market_review_region("both,us"), "cn,hk,us,jp,kr,vn")
         self.assertEqual(Config._parse_market_review_region("cn,,us"), "cn,us")
 
     @patch("src.config.setup_env")
@@ -939,7 +939,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
         )
         self.assertEqual(
             Config._parse_market_review_region("both"),
-            "cn,hk,us,jp,kr",
+            "cn,hk,us,jp,kr,vn",
         )
 
     @patch("src.config.setup_env")
