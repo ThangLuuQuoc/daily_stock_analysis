@@ -84,6 +84,13 @@ if [[ "${1:-}" == "--merge-test" ]]; then
     mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
     # Merge co the that bai vi ly do khac han xung dot (unrelated histories,
     # local changes would be overwritten...). Khong duoc coi do la "0 xung dot".
+    # "Already up to date" = fork DA merge het upstream. Khong phai loi, va cung
+    # khong phai bang chung "0 xung dot" — chi la chua co gi moi de merge.
+    if [[ "$merge_out" == *"Already up to date"* ]]; then
+        echo "  Fork da bat kip $target — khong co gi moi de merge."
+        echo "  Chay lai sau khi upstream co commit moi (git fetch upstream)."
+        exit 0
+    fi
     if [[ ${#conflicts[@]} -eq 0 ]] && ! git rev-parse --verify --quiet MERGE_HEAD >/dev/null; then
         echo "LOI: merge khong chay duoc (khong phai vi xung dot). Output cua git:"
         echo "$merge_out" | sed 's/^/     /'
