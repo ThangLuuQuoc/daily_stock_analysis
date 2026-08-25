@@ -4232,7 +4232,7 @@ class GeminiAnalyzer:
             prompt += analysis_context_pack_summary
         prompt += f"""
 
-## 📈 Dữ liệu kỹ thuật
+## 📈 {_L("技术面数据")}
 
 ### {quote_section_title}
 | {_L("指标")} | {_L("数值")} |
