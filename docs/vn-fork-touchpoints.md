@@ -175,6 +175,34 @@ cu hon ban tieng Trung mot chut.
 Cung file nay giu `PROMPT_LABELS_VI` (bang tra nhan, khoa = literal tieng Trung)
 va `price_unit()` (hau to " 元": bo cho `vi`, giu cho ngon ngu khac).
 
+### 1.1h Cac file fork tu so huu (them ngon ngu / thi truong VN)
+
+Toan bo du lieu tieng Viet nam trong nhung file nay. `git merge upstream/main`
+KHONG BAO GIO dinh conflict o day vi upstream khong biet chung ton tai.
+
+| File fork | Phu cho | Co che |
+|---|---|---|
+| `src/report_language_vi.py` | `src/report_language.py` | `register()` tiem vao dict cua upstream. Gom `VI_FLAT_BY_LANGUAGE` cho cac dict phang `{lang: text}` (thieu khoa = KeyError luc chay). |
+| `src/analyzer_prompts_vi.py` | `src/analyzer.py` | 3 hang prompt he thong + `PROMPT_LABELS_VI` (khoa = literal tieng Trung) + `price_unit()`. |
+| `src/market_context_vi.py` | `src/market_context.py` | Ban dich `vi` cho 6 thi truong upstream + thi truong `vn` moi (bien do ±7%, T+2, foreign room). |
+| `src/market_phase_prompt_vi.py` | `src/market_phase_prompt.py` | `_EXTRA_FORMATTERS` registry. |
+| `src/market_phase_summary_vi.py` | `src/market_phase_summary.py` | `_EXTRA_*_LABELS` registry. |
+| `src/trend_text_vi.py` | `src/stock_analyzer.py` | Dich o BIEN prompt — KHONG dich tai cho vi `_infer_trend_direction()` **parse** `ma_alignment`. |
+| `src/core/pipeline_progress_vi.py` | `src/core/pipeline.py` | Bang `PROGRESS_VI`, khoa = template tieng Trung CHUA noi suy. |
+| `api/v1/messages_vi.py` | `api/v1/endpoints/*`, `api/middlewares/error_handler.py` | `msg()` doc ngon ngu tu Config; khoa = literal tieng Trung. |
+
+Ba nguyen tac chung cho moi bang tra cuu tren:
+
+1. **Khoa la literal tieng Trung cua upstream**, giu nguyen tai cho trong file
+   upstream. Merge de hon, va doc code van thay duoc ban goc.
+2. **Khoa chua dich -> tra ve nguyen van**, khong bao gio `KeyError`. Thay sai
+   ngon ngu de phat hien hon nhieu so voi phan tich bi vo.
+3. **Khoa la template CHUA noi suy** (`"{code}：..."`), khong phai chuoi da
+   format. Tra cuu la so sanh chuoi chinh xac, khong phai khop tien to mong manh.
+
+Moi bang deu co test quet nguoc: khoa nao khong con ton tai trong file upstream
+thi do ngay (upstream doi thong bao -> phat hien lien, khong am tham thoi dich).
+
 ### 1.2 Config
 
 | File | Vị trí | Loại | Lý do |
