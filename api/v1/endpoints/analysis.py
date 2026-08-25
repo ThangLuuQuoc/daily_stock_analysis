@@ -86,6 +86,8 @@ from src.services.task_queue import (
 from src.services.run_diagnostics import build_run_diagnostic_summary
 from src.services.run_flow import build_task_run_flow_snapshot
 from src.services.empty_news import empty_news_disclosure_from_stored
+# fork VN: bang dich thong bao API; khoa = literal tieng Trung cua upstream.
+from api.v1.messages_vi import msg as _msg
 from src.utils.data_processing import (
     normalize_model_used,
     parse_json_field,
@@ -210,7 +212,7 @@ def _extract_guardrail_reason(raw_result: Any) -> Optional[str]:
 
 
 def _invalid_analysis_input_error() -> HTTPException:
-    return api_error(400, "validation_error", "Please enter a valid stock code or name")
+    return api_error(400, "validation_error", _msg("请输入有效的股票代码或股票名称"))
 
 
 def _is_obviously_invalid_analysis_input(text: str) -> bool:
@@ -332,10 +334,14 @@ def trigger_analysis(
     # Limit the number of stocks in a single request to prevent DoS
     MAX_BATCH_SIZE = 50
     if len(stock_codes) > MAX_BATCH_SIZE:
-        raise api_error(400, "validation_error", f"A single analysis request supports at most {MAX_BATCH_SIZE} stocks")
+        raise api_error(
+            400,
+            "validation_error",
+            _msg("单次分析请求最多支持 {max_batch} 只股票", max_batch=MAX_BATCH_SIZE),
+        )
 
     if not stock_codes:
-        raise api_error(400, "validation_error", "Stock code cannot be empty or whitespace only")
+        raise api_error(400, "validation_error", _msg("股票代码不能为空或仅包含空白字符"))
 
     # Sync mode only supports single-stock analysis.
     if not request.async_mode:
@@ -343,7 +349,7 @@ def trigger_analysis(
             raise api_error(
                 400,
                 "validation_error",
-                "Sync mode supports a single stock only; use async_mode=true for batch analysis",
+                _msg("同步模式仅支持单只股票分析，请使用 async_mode=true 进行批量分析"),
             )
         return _handle_sync_analysis(stock_codes[0], request)
 
@@ -479,7 +485,7 @@ def _handle_sync_analysis(
         )
 
         if result is None:
-            error_message = service.last_error or f"Failed to analyze stock {stock_code}"
+            error_message = service.last_error or _msg("分析股票 {stock_code} 失败", stock_code=stock_code)
             raise api_error(500, "analysis_failed", error_message)
 
         # 构建报告结构
@@ -565,8 +571,8 @@ def trigger_market_review(
                 query_id=task_id,
             ),
             stock_code="market_review",
-            stock_name="Phân tích thị trường",
-            message="Đã gửi yêu cầu phân tích thị trường",
+            stock_name=_msg("大盘复盘"),
+            message=_msg("大盘复盘任务已提交"),
             task_id=task_id,
             region=effective_region,
         )
@@ -576,7 +582,7 @@ def trigger_market_review(
 
     return MarketReviewAccepted(
         status="accepted",
-        message="Đã gửi yêu cầu phân tích thị trường; báo cáo sẽ được lưu và gửi thông báo theo cấu hình.",
+        message=_msg("大盘复盘任务已提交，完成后会保存报告并按配置推送通知"),
         send_notification=request.send_notification,
         region=effective_region,
         task_id=task.task_id,
