@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
@@ -9,8 +9,8 @@ import type { UiLanguage } from '../i18n/uiText';
 import { agentApi } from '../api/agent';
 import { systemConfigApi } from '../api/systemConfig';
 import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
-import { getParsedApiError } from '../api/error';
-import type { SkillInfo } from '../api/agent';
+import { createParsedApiError, getParsedApiError } from '../api/error';
+import type { AgentStatusResponse, SkillInfo } from '../api/agent';
 import { DashboardStateBlock } from '../components/dashboard';
 import {
   useAgentChatStore,
@@ -30,17 +30,26 @@ import { isNearBottom } from '../utils/chatScroll';
 import { getReportText } from '../utils/reportLanguage';
 import { extractStockCodesFromMessage } from '../utils/chatStockCode';
 import { findMatchingStockCode, includesStockCode, normalizeStockCode } from '../utils/stockCode';
+import { useStockIndex } from '../hooks/useStockIndex';
+import type { StockIndexItem } from '../types/stockIndex';
+import { useUiLanguage } from '../contexts/UiLanguageContext';
 
 type LocalText = Record<UiLanguage, string>;
 
 // Quick question examples shown on empty state
-const QUICK_QUESTIONS: { label: LocalText; skill: string }[] = [
-  { label: { zh: '用缠论分析茅台', en: 'Analyze Moutai with Chan theory', vi: 'Phân tích Moutai bằng lý thuyết Chan' }, skill: 'chan_theory' },
-  { label: { zh: '波浪理论看宁德时代', en: 'View CATL with wave theory', vi: 'Xem CATL bằng lý thuyết sóng' }, skill: 'wave_theory' },
-  { label: { zh: '分析比亚迪趋势', en: 'Analyze BYD trend', vi: 'Phân tích xu hướng BYD' }, skill: 'bull_trend' },
-  { label: { zh: '箱体震荡技能看中芯国际', en: 'View SMIC with box oscillation', vi: 'Xem SMIC bằng dao động hộp' }, skill: 'box_oscillation' },
-  { label: { zh: '分析腾讯 hk00700', en: 'Analyze Tencent hk00700', vi: 'Phân tích Tencent hk00700' }, skill: 'bull_trend' },
-  { label: { zh: '用情绪周期分析东方财富', en: 'Analyze East Money with emotion cycle', vi: 'Phân tích East Money theo chu kỳ cảm xúc' }, skill: 'emotion_cycle' },
+type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>;
+
+const QUICK_QUESTIONS: Array<{
+  label: LocalText;
+  skill: string;
+  stockContext?: ActiveStockContext;
+}> = [
+  { label: { zh: '用缠论分析茅台', en: 'Analyze Moutai with Chan theory', vi: 'Phân tích Moutai bằng lý thuyết Chan' }, skill: 'chan_theory', stockContext: { stock_code: '600519', stock_name: '贵州茅台' } },
+  { label: { zh: '波浪理论看宁德时代', en: 'View CATL with wave theory', vi: 'Xem CATL bằng lý thuyết sóng' }, skill: 'wave_theory', stockContext: { stock_code: '300750', stock_name: '宁德时代' } },
+  { label: { zh: '分析比亚迪趋势', en: 'Analyze BYD trend', vi: 'Phân tích xu hướng BYD' }, skill: 'bull_trend', stockContext: { stock_code: '002594', stock_name: '比亚迪' } },
+  { label: { zh: '箱体震荡技能看中芯国际', en: 'View SMIC with box oscillation', vi: 'Xem SMIC bằng dao động hộp' }, skill: 'box_oscillation', stockContext: { stock_code: '688981', stock_name: '中芯国际' } },
+  { label: { zh: '分析腾讯 hk00700', en: 'Analyze Tencent hk00700', vi: 'Phân tích Tencent hk00700' }, skill: 'bull_trend', stockContext: { stock_code: 'HK00700', stock_name: '腾讯控股' } },
+  { label: { zh: '用情绪周期分析东方财富', en: 'Analyze East Money with emotion cycle', vi: 'Phân tích East Money theo chu kỳ cảm xúc' }, skill: 'emotion_cycle', stockContext: { stock_code: '300059', stock_name: '东方财富' } },
 ];
 
 const CHAT_TEXT = {
@@ -151,10 +160,33 @@ const CHOICE_COMPARE_STOCK_MESSAGE_RE = /哪个|哪只|哪一个|谁更|更值�
 const LINKED_COMPARE_STOCK_MESSAGE_RE = /(?:和|与|跟|同)[^，。,.!?！？]{0,40}(?:差异(?!化)|区别|不同|相比|对照|比一比)/;
 const SWITCH_STOCK_MESSAGE_RE = /换成|改看|分析|看看|研究|诊断/;
 
-type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>;
 type ActiveStockResolution = {
   context: ActiveStockContext;
   useForCurrentSend: boolean;
+};
+
+const resolveUniqueStockNameContext = (
+  message: string,
+  index: StockIndexItem[],
+): ActiveStockContext | null => {
+  const normalizedMessage = message.trim().toLocaleLowerCase();
+  if (!normalizedMessage) return null;
+
+  const matches = new Map<string, ActiveStockContext>();
+  for (const item of index) {
+    if (!item.active) continue;
+    const terms = [item.nameZh, item.nameEn, ...(item.aliases || [])]
+      .map((term) => term?.trim())
+      .filter((term): term is string => Boolean(term))
+      .filter((term) => /[\u3400-\u9fff]/.test(term) ? term.length >= 2 : term.length >= 3);
+    if (!terms.some((term) => normalizedMessage.includes(term.toLocaleLowerCase()))) {
+      continue;
+    }
+    const stockCode = normalizeStockCode(item.canonicalCode);
+    matches.set(stockCode, { stock_code: stockCode, stock_name: item.nameZh || null });
+  }
+
+  return matches.size === 1 ? [...matches.values()][0] : null;
 };
 
 const getMessageSkillNames = (msg: Message): string[] => {
@@ -272,6 +304,8 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
 };
 
 const ChatPage: React.FC = () => {
+  const { t } = useUiLanguage();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [input, setInput] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -300,6 +334,12 @@ const ChatPage: React.FC = () => {
   const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
   const [activeStockCode, setActiveStockCode] = useState<string | null>(null);
   const [activeStockContext, setActiveStockContext] = useState<ActiveStockContext | null>(null);
+  const [agentStatus, setAgentStatus] = useState<AgentStatusResponse | null>(null);
+  const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
+  const [agentStatusChecking, setAgentStatusChecking] = useState(true);
+  const { index: stockIndex } = useStockIndex(
+    agentStatus?.backend === 'codex_app_server',
+  );
   const watchlistMessageTimerRef = useRef<number | null>(null);
   const copyResetTimerRef = useRef<Partial<Record<string, number>>>({});
   const messagesViewportRef = useRef<HTMLDivElement>(null);
@@ -310,6 +350,7 @@ const ChatPage: React.FC = () => {
   const followUpContextRef = useRef<ChatFollowUpContext | null>(null);
   const shouldStickToBottomRef = useRef(true);
   const pendingScrollBehaviorRef = useRef<ScrollBehavior>('auto');
+  const agentStatusRequestIdRef = useRef(0);
 
   const { language } = useUiLanguage();
   // Get localized text based on current UI language
@@ -336,8 +377,11 @@ const ChatPage: React.FC = () => {
     document.title = CHAT_TEXT.documentTitle[language];
   }, [language]);
 
-  useEffect(() => () => {
-    isMountedRef.current = false;
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const loadWatchlist = useCallback(async () => {
@@ -409,9 +453,13 @@ const ChatPage: React.FC = () => {
     sessions,
     sessionsLoading,
     chatError,
+    stopping,
+    terminalStatus,
+    stopError,
     loadSessions,
     loadInitialSession,
     switchSession,
+    stopStream,
     startStream,
     clearCompletionBadge,
   } = useAgentChatStore();
@@ -505,6 +553,30 @@ const ChatPage: React.FC = () => {
       });
   }, []);
 
+  const loadAgentStatus = useCallback(async () => {
+    const requestId = agentStatusRequestIdRef.current + 1;
+    agentStatusRequestIdRef.current = requestId;
+    setAgentStatusChecking(true);
+    try {
+      const status = await agentApi.getStatus();
+      if (!isMountedRef.current || agentStatusRequestIdRef.current !== requestId) return;
+      setAgentStatus(status);
+      setAgentStatusError(null);
+    } catch (error: unknown) {
+      if (!isMountedRef.current || agentStatusRequestIdRef.current !== requestId) return;
+      setAgentStatus(null);
+      setAgentStatusError(getParsedApiError(error).message);
+    } finally {
+      if (isMountedRef.current && agentStatusRequestIdRef.current === requestId) {
+        setAgentStatusChecking(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAgentStatus();
+  }, [loadAgentStatus]);
+
   useEffect(() => {
     let active = true;
 
@@ -581,6 +653,23 @@ const ChatPage: React.FC = () => {
   const quickQuestions = QUICK_QUESTIONS.filter((question) => availableSkillIds.size === 0 || availableSkillIds.has(question.skill));
   const selectedSkillIdSet = new Set(selectedSkillIds);
   const skillLimitReached = selectedSkillIds.length >= MAX_SELECTED_SKILLS;
+  const agentConfirmedUnavailable = Boolean(agentStatus && !agentStatus.available);
+  const agentAvailable = Boolean(agentStatus?.available) && !agentStatusChecking;
+  const agentUnavailableMessage = agentStatus?.errorCode === 'agent_mode_disabled'
+    ? t('chat.agentModeDisabled')
+    : agentStatus?.errorCode === 'platform_unsupported'
+      ? t('chat.agentPlatformUnsupported')
+      : agentStatus?.backend === 'codex_app_server'
+        ? t('chat.codexUnavailableMessage')
+        : t('chat.defaultUnavailableMessage');
+  const agentUnavailableError = agentConfirmedUnavailable
+    ? createParsedApiError({
+        title: t('chat.agentBackendUnavailableTitle'),
+        message: agentUnavailableMessage,
+        rawMessage: `${agentStatus?.errorCode || 'capability_unsupported'}: ${agentStatus?.message || ''}`,
+        category: 'upstream_network',
+      })
+    : null;
 
   const getSkillNames = useCallback(
     (skillIds: string[]) => skillIds.map((id) => skills.find((s) => s.id === id)?.name || id),
@@ -690,20 +779,40 @@ const ChatPage: React.FC = () => {
   }, [searchParams, setSearchParams]);
 
   const handleSend = useCallback(
-    async (overrideMessage?: string, overrideSkillIds?: string[]) => {
+    async (
+      overrideMessage?: string,
+      overrideSkillIds?: string[],
+      overrideStockContext?: ActiveStockContext,
+    ) => {
       const msgText = (overrideMessage ?? input).trim();
-      if (!msgText || loading) return;
+      if (!msgText || loading || !agentAvailable || !agentStatus) return;
+      if (overrideMessage !== undefined) {
+        setInput(msgText);
+      }
       const usedSkillIds = normalizeSelectedSkillIds(overrideSkillIds ?? selectedSkillIds);
       const usedSkillNames = usedSkillIds.length > 0 ? getSkillNames(usedSkillIds) : [CHAT_TEXT.general[language]];
+      const codexStockContext = agentStatus?.backend === 'codex_app_server'
+        ? overrideStockContext
+        : undefined;
 
-      let nextActiveStockContext = activeStockContext;
-      let useActiveContextForThisSend = false;
-      const stockResolution = resolveActiveStockContextFromMessage(msgText, activeStockContext);
+      let nextActiveStockContext = codexStockContext ?? activeStockContext;
+      let useActiveContextForThisSend = Boolean(codexStockContext);
+      const stockResolution = codexStockContext
+        ? null
+        : resolveActiveStockContextFromMessage(msgText, activeStockContext);
       if (stockResolution) {
         nextActiveStockContext = stockResolution.context;
         useActiveContextForThisSend = stockResolution.useForCurrentSend;
-        setActiveStockContext(nextActiveStockContext);
-        setActiveStockCode(nextActiveStockContext.stock_code);
+      } else if (
+        agentStatus?.backend === 'codex_app_server'
+        && !codexStockContext
+        && (!nextActiveStockContext || SWITCH_STOCK_MESSAGE_RE.test(msgText))
+      ) {
+        const nameContext = resolveUniqueStockNameContext(msgText, stockIndex);
+        if (nameContext) {
+          nextActiveStockContext = nameContext;
+          useActiveContextForThisSend = true;
+        }
       }
       const contextForSend = useActiveContextForThisSend
         ? nextActiveStockContext
@@ -715,19 +824,24 @@ const ChatPage: React.FC = () => {
         ...(usedSkillIds.length > 0 ? { skills: usedSkillIds } : {}),
         context: contextForSend ?? undefined,
       };
-      followUpHydrationTokenRef.current += 1;
-      followUpContextRef.current = null;
-      setIsFollowUpContextLoading(false);
-
-      setInput('');
-      setMobileSkillPickerOpen(false);
-      requestScrollToBottom('smooth');
       await startStream(payload, {
         skillNames: usedSkillNames,
         skillName: usedSkillNames.join(listSeparator),
+        onAccepted: () => {
+          followUpHydrationTokenRef.current += 1;
+          followUpContextRef.current = null;
+          setIsFollowUpContextLoading(false);
+          if (nextActiveStockContext) {
+            setActiveStockContext(nextActiveStockContext);
+            setActiveStockCode(nextActiveStockContext.stock_code);
+          }
+          setInput('');
+          setMobileSkillPickerOpen(false);
+          requestScrollToBottom('smooth');
+        },
       });
     },
-    [activeStockContext, getSkillNames, input, language, listSeparator, loading, normalizeSelectedSkillIds, requestScrollToBottom, selectedSkillIds, sessionId, startStream],
+    [activeStockContext, agentAvailable, agentStatus, getSkillNames, input, language, listSeparator, loading, normalizeSelectedSkillIds, requestScrollToBottom, selectedSkillIds, sessionId, startStream, stockIndex],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -739,7 +853,7 @@ const ChatPage: React.FC = () => {
 
   const handleQuickQuestion = (q: (typeof QUICK_QUESTIONS)[0]) => {
     setSelectedSkillIds([q.skill]);
-    handleSend(q.label[language], [q.skill]);
+    handleSend(q.label[language], [q.skill], q.stockContext);
   };
 
   const showSendFeedback = useCallback((nextToast: { type: 'success' | 'error'; message: string }, durationMs: number) => {
@@ -1096,6 +1210,14 @@ const ChatPage: React.FC = () => {
                 />
               </svg>
               {CHAT_TEXT.title[language]}
+              {agentStatus ? (
+                <Badge
+                  variant={agentStatus.backend === 'codex_app_server' ? 'warning' : 'history'}
+                  size="sm"
+                >
+                  {t(agentStatus.backend === 'codex_app_server' ? 'chat.codexBackendBadge' : 'chat.defaultBackendBadge')}
+                </Badge>
+              ) : null}
             </h1>
             {messages.length > 0 && (
               <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
@@ -1193,8 +1315,25 @@ const ChatPage: React.FC = () => {
             )}
           </div>
           <p className="text-secondary-text text-sm">
-            {CHAT_TEXT.intro[language]}
+            {t(agentStatus?.backend === 'codex_app_server' ? 'chat.introCodex' : 'chat.introDefault')}
           </p>
+          {agentStatus?.backend === 'codex_app_server' ? (
+            <InlineAlert
+              variant="warning"
+              title={t('chat.codexLimitedTitle')}
+              message={t('chat.codexLimitedMessage')}
+              action={(
+                <Button
+                  variant="action-primary"
+                  size="sm"
+                  onClick={() => navigate('/settings?category=agent')}
+                >
+                  {t('chat.codexChangeBackend')}
+                </Button>
+              )}
+              className="rounded-xl px-3 py-2 text-xs shadow-none"
+            />
+          ) : null}
           {sendToast ? (
             <InlineAlert
               variant={sendToast.type === 'success' ? 'success' : 'danger'}
@@ -1218,7 +1357,11 @@ const ChatPage: React.FC = () => {
               <div className="flex h-full items-center justify-center">
                 <EmptyState
                   title={CHAT_TEXT.emptyTitle[language]}
-                  description={CHAT_TEXT.emptyDesc[language]}
+                  description={t(
+                    agentStatus?.backend === 'codex_app_server'
+                      ? 'chat.emptyDescriptionCodex'
+                      : 'chat.emptyDescriptionDefault',
+                  )}
                   className="max-w-2xl border-dashed bg-card/55"
                   icon={(
                     <svg
@@ -1241,7 +1384,8 @@ const ChatPage: React.FC = () => {
                         <button
                           key={i}
                           onClick={() => handleQuickQuestion(q)}
-                          className="quick-question-btn"
+                          disabled={!agentAvailable}
+                          className="quick-question-btn disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {q.label[language]}
                         </button>
@@ -1272,9 +1416,9 @@ const ChatPage: React.FC = () => {
                       msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'
                     )}
                   >
-                    {msg.role === 'assistant' && skillLabel && (
-                      <div className="mb-2">
-                        <Badge variant="info" className="chat-skill-badge shadow-none" aria-label={buildSkillAria(language, skillLabel)}>
+                    {msg.role === 'assistant' && (skillLabel || msg.backend) && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {skillLabel ? <Badge variant="info" className="chat-skill-badge shadow-none" aria-label={buildSkillAria(language, skillLabel)}>
                           <svg
                             className="w-3 h-3"
                             fill="none"
@@ -1289,7 +1433,12 @@ const ChatPage: React.FC = () => {
                             />
                           </svg>
                           {skillLabel}
-                        </Badge>
+                        </Badge> : null}
+                        {msg.backend ? (
+                          <Badge variant={msg.backend === 'codex_app_server' ? 'warning' : 'history'} size="sm">
+                            {t(msg.backend === 'codex_app_server' ? 'chat.codexBackendBadge' : 'chat.defaultBackendBadge')}
+                          </Badge>
+                        ) : null}
                       </div>
                     )}
                     {msg.role === 'assistant' && renderThinkingBlock(msg)}
@@ -1396,6 +1545,54 @@ const ChatPage: React.FC = () => {
           <div className="border-t border-white/6 bg-card/88 p-4 md:p-6 relative z-20">
             <div className="space-y-3">
               {chatError ? <ApiErrorAlert error={chatError} /> : null}
+              {terminalStatus === 'cancelled' ? (
+                <div role="status" className="rounded-xl border border-slate-500/20 bg-slate-500/5 px-4 py-3 text-sm">
+                  {t('chat.analysisStopped')}
+                </div>
+              ) : null}
+              {terminalStatus === 'timeout' ? (
+                <div role="status" className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm">
+                  {t('chat.analysisTimedOut')}
+                </div>
+              ) : null}
+              {stopError ? (
+                <div role="alert" className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm">
+                  {t('chat.stopRequestFailed')}
+                </div>
+              ) : null}
+              {agentUnavailableError ? (
+                <div className="space-y-2">
+                  <ApiErrorAlert
+                    error={agentUnavailableError}
+                    actionLabel={t('chat.openAgentSettings')}
+                    onAction={() => navigate('/settings?category=agent')}
+                  />
+                  <Button variant="secondary" size="sm" onClick={() => void loadAgentStatus()}>
+                    {t('chat.recheckAgentStatus')}
+                  </Button>
+                </div>
+              ) : null}
+              {agentStatusError ? (
+                <InlineAlert
+                  variant="warning"
+                  title={t('chat.statusUnavailableTitle')}
+                  message={t('chat.statusUnavailableMessage')}
+                  action={(
+                    <Button variant="secondary" size="sm" onClick={() => void loadAgentStatus()}>
+                      {t('chat.recheckAgentStatus')}
+                    </Button>
+                  )}
+                  className="rounded-xl px-3 py-2 text-xs shadow-none"
+                />
+              ) : null}
+              {agentStatusChecking ? (
+                <InlineAlert
+                  variant="info"
+                  title={t('chat.statusCheckingTitle')}
+                  message={t('chat.statusCheckingMessage')}
+                  className="rounded-xl px-3 py-2 text-xs shadow-none"
+                />
+              ) : null}
               {isFollowUpContextLoading ? (
                 <InlineAlert
                   variant="info"
@@ -1549,7 +1746,7 @@ const ChatPage: React.FC = () => {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={CHAT_TEXT.inputPlaceholder[language]}
-                  disabled={loading}
+                  disabled={loading || !agentAvailable}
                   rows={1}
                   className="input-surface input-focus-glow flex-1 min-h-[44px] max-h-[200px] rounded-xl border bg-transparent px-4 py-2.5 text-sm transition-all focus:outline-none resize-none disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ height: 'auto' }}
@@ -1559,15 +1756,26 @@ const ChatPage: React.FC = () => {
                     t.style.height = `${Math.min(t.scrollHeight, 200)}px`;
                   }}
                 />
-                <Button
-                  variant="primary"
-                  onClick={() => handleSend()}
-                  disabled={!input.trim() || loading}
-                  isLoading={loading}
-                  className="btn-primary flex-shrink-0"
-                >
-                  {CHAT_TEXT.send[language]}
-                </Button>
+                {loading && agentStatus?.backend === 'codex_app_server' ? (
+                  <Button
+                    variant="danger-subtle"
+                    onClick={stopStream}
+                    disabled={stopping}
+                    className="flex-shrink-0"
+                  >
+                    {stopping ? t('chat.stoppingAnalysis') : t('chat.stopAnalysis')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    onClick={() => handleSend()}
+                    disabled={!input.trim() || loading || !agentAvailable}
+                    isLoading={loading}
+                    className="btn-primary flex-shrink-0"
+                  >
+                    {CHAT_TEXT.send[language]}
+                  </Button>
+                )}
               </div>
             </div>
           </div>

@@ -152,6 +152,7 @@ const REPORT_TEXT = {
     laggingBoard: 'Tụt hậu',
     neutralBoard: 'Trung tính',
     reanalyze: 'Phân tích lại',
+  },
   ko: {
     keyInsights: '핵심 인사이트',
     noAnalysisSummary: '분석 결론 없음',

@@ -24,6 +24,7 @@ const REQUEST_PHASE_LABELS: Record<ReportLanguage, Record<AnalysisPhase, string>
     premarket: 'Trước phiên',
     intraday: 'Trong phiên',
     postmarket: 'Sau phiên',
+  },
   ko: {
     auto: '자동 단계',
     premarket: '장 시작 전',
@@ -59,6 +60,7 @@ const MARKET_PHASE_LABELS: Record<ReportLanguage, Record<MarketPhaseValue, strin
     postmarket: 'Sau phiên',
     non_trading: 'Ngày không giao dịch',
     unknown: 'Không rõ phiên',
+  },
   ko: {
     premarket: '장 시작 전',
     intraday: '장중',
@@ -85,6 +87,7 @@ const TEXT = {
     requestPrefix: 'Phiên yêu cầu',
     finalPrefix: 'Phiên thị trường',
     partialBar: 'Nến chưa hoàn tất',
+  },
   ko: {
     requestPrefix: '요청 단계',
     finalPrefix: '시장 단계',

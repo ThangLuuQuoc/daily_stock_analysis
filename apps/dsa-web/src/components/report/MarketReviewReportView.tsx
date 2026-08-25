@@ -343,6 +343,7 @@ const MARKET_REVIEW_TEXT: Record<ReportLanguage, {
     last: 'Mới nhất',
     change: 'Biến động',
     highLow: 'Cao/Thấp',
+  },
   ko: {
     reviewSummary: '리뷰 요약',
     noReviewSummary: '요약 없음',

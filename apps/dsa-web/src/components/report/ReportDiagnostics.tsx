@@ -121,6 +121,8 @@ const TEXT = {
       unknown: 'Không rõ',
       not_configured: 'Chưa cấu hình',
       skipped: 'Đã bỏ qua',
+  },
+  },
   ko: {
     eyebrow: '실행 진단',
     title: '실행 상태',
