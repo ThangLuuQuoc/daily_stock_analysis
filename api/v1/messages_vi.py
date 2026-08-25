@@ -29,6 +29,13 @@ API_MESSAGES_VI: Dict[str, str] = {
     '大盘复盘': 'Phân tích thị trường',
     '大盘复盘任务已提交': 'Đã gửi yêu cầu phân tích thị trường',
     '大盘复盘任务已提交，完成后会保存报告并按配置推送通知': 'Đã gửi yêu cầu phân tích thị trường; báo cáo sẽ được lưu và gửi thông báo theo cấu hình.',
+    '股票代码不能为空': 'Mã cổ phiếu không được để trống',
+    "'{stripped}' 不是合法的股票代码格式": "'{stripped}' không phải định dạng mã cổ phiếu hợp lệ",
+    '当前自选 {count} 只股票': 'Danh mục theo dõi hiện có {count} mã cổ phiếu',
+    '未找到股票 {stock_code} 的行情数据': 'Không tìm thấy dữ liệu giá cho cổ phiếu {stock_code}',
+    '服务器内部错误，请稍后重试': 'Lỗi nội bộ máy chủ, vui lòng thử lại sau',
+    '请求参数验证失败': 'Xác thực tham số yêu cầu thất bại',
+    '服务器内部错误': 'Lỗi nội bộ máy chủ',
 }
 
 

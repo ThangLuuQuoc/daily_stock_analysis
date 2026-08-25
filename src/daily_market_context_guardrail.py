@@ -145,9 +145,14 @@ def _softened_position_advice(language: str) -> dict[str, str]:
             "no_position": "시장 위험이 완화되거나 확인 신호가 나오기 전까지 신규 진입하지 마세요.",
             "has_position": "소량만 보유하고 비중을 늘리지 마세요. 리스크 관리선이 무너지면 비중을 줄이세요.",
         }
+    if language == "vi":
+        return {
+            "no_position": "Bối cảnh thị trường chung thiên về thận trọng, tạm chưa mở vị thế mới, chờ rủi ro giảm bớt hoặc tín hiệu xác nhận.",
+            "has_position": "Chỉ giữ tỷ trọng nhỏ để quan sát, tạm chưa mở rộng vị thế; nếu thủng ngưỡng kiểm soát rủi ro thì ưu tiên giảm tỷ trọng.",
+        }
     return {
-        "no_position": "Bối cảnh thị trường chung thiên về thận trọng, tạm chưa mở vị thế mới, chờ rủi ro giảm bớt hoặc tín hiệu xác nhận.",
-        "has_position": "Chỉ giữ tỷ trọng nhỏ để quan sát, tạm chưa mở rộng vị thế; nếu thủng ngưỡng kiểm soát rủi ro thì ưu tiên giảm tỷ trọng.",
+        "no_position": "大盘环境偏谨慎，暂不开新仓，等待风险缓解或确认信号。",
+        "has_position": "仅保留小仓观察，暂不扩大仓位；若跌破风控位优先降低仓位。",
     }
 
 
@@ -165,10 +170,16 @@ def _softened_position_strategy(language: str) -> dict[str, str]:
             "entry_plan": position_advice["no_position"],
             "risk_control": "시장 위험이 완화되기 전까지 비중을 늘리지 말고 낙폭을 엄격히 관리하세요.",
         }
+    if language == "vi":
+        return {
+            "suggested_position": "Tỷ trọng nhỏ/thấp",
+            "entry_plan": position_advice["no_position"],
+            "risk_control": "Trước khi rủi ro thị trường chung giảm bớt thì không mở rộng vị thế, kiểm soát mức sụt giảm chặt chẽ.",
+        }
     return {
-        "suggested_position": "Tỷ trọng nhỏ/thấp",
+        "suggested_position": "小仓/低仓位",
         "entry_plan": position_advice["no_position"],
-        "risk_control": "Trước khi rủi ro thị trường chung giảm bớt thì không mở rộng vị thế, kiểm soát mức sụt giảm chặt chẽ.",
+        "risk_control": "大盘风险未缓解前不扩大仓位，严格控制回撤。",
     }
 
 

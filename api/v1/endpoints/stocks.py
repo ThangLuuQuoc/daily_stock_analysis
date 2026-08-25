@@ -42,6 +42,8 @@ from src.services.stock_service import StockService
 from src.services.stock_list_parser import split_stock_list
 from src.services.system_config_service import SystemConfigService
 from data_provider.base import normalize_stock_code
+# fork VN: bang dich thong bao API; khoa = literal tieng Trung cua upstream.
+from api.v1.messages_vi import msg as _msg
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +99,14 @@ def _validate_and_normalize_stock_code(code: str) -> str:
     if not stripped:
         raise HTTPException(
             status_code=400,
-            detail={"error": "invalid_stock_code", "message": "Stock code cannot be empty"},
+            detail={"error": "invalid_stock_code", "message": _msg("股票代码不能为空")},
         )
     if not _STOCK_CODE_RE.match(stripped):
         raise HTTPException(
             status_code=400,
             detail={
                 "error": "invalid_stock_code",
-                "message": f"'{stripped}' is not a valid stock code format",
+                "message": _msg("'{stripped}' 不是合法的股票代码格式", stripped=stripped),
             },
         )
     return normalize_stock_code(stripped)
@@ -328,7 +330,7 @@ def get_watchlist(
 ) -> WatchlistResponse:
     try:
         codes = _read_watchlist_codes(service)
-        return WatchlistResponse(stock_codes=codes, message=f"{len(codes)} stocks in watchlist")
+        return WatchlistResponse(stock_codes=codes, message=_msg("当前自选 {count} 只股票", count=len(codes)))
     except Exception as e:
         logger.error(f"获取自选队列失败: {e}", exc_info=True)
         raise HTTPException(
@@ -442,7 +444,7 @@ def get_stock_quote(stock_code: str) -> StockQuote:
                 status_code=404,
                 detail={
                     "error": "not_found",
-                    "message": f"No quote data found for stock {stock_code}"
+                    "message": _msg("未找到股票 {stock_code} 的行情数据", stock_code=stock_code)
                 }
             )
         

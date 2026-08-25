@@ -17,6 +17,8 @@ from typing import Callable
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+# fork VN: bang dich thong bao API; khoa = literal tieng Trung cua upstream.
+from api.v1.messages_vi import msg as _msg
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={
                     "error": "internal_error",
-                    "message": "Internal server error, please try again later",
+                    "message": _msg("服务器内部错误，请稍后重试"),
                     "detail": str(e) if logger.isEnabledFor(logging.DEBUG) else None
                 }
             )
@@ -105,7 +107,7 @@ def add_error_handlers(app) -> None:
             status_code=422,
             content={
                 "error": "validation_error",
-                "message": "Request validation failed",
+                "message": _msg("请求参数验证失败"),
                 "detail": exc.errors()
             }
         )
@@ -122,7 +124,7 @@ def add_error_handlers(app) -> None:
             status_code=500,
             content={
                 "error": "internal_error",
-                "message": "Internal server error",
+                "message": _msg("服务器内部错误"),
                 "detail": None
             }
         )
