@@ -333,6 +333,32 @@ class StockAnalysisPipeline:
             )
             self.social_sentiment_service = None
 
+    def _tr(self, template: str, **kwargs) -> str:
+        """fork VN: dich template thong bao tien trinh roi noi suy.
+
+        `template` la chuoi tieng Trung CUA UPSTREAM, giu nguyen tai cho trong
+        cac call site ben duoi -> merge upstream khong dinh conflict, va ngon
+        ngu khac `vi` nhan dung ban goc.
+
+        Doc ngon ngu tu self.config nen moi call site dung duoc, ke ca trong
+        `process_single_stock` noi bien `report_language` khong co trong scope.
+        """
+        try:
+            from src.core.pipeline_progress_vi import translate
+
+            # getattr LONG NHAU: `self.config` co the CHUA TON TAI (test dung
+            # pipeline qua __new__ hoac mock mot phan). Mot dong thong bao tien
+            # trinh khong bao gio duoc phep lam vo ca luot phan tich.
+            config = getattr(self, "config", None)
+            lang = normalize_report_language(getattr(config, "report_language", "zh"))
+            return translate(template, lang).format(**kwargs)
+        except Exception:
+            try:
+                return template.format(**kwargs)
+            except Exception:
+                return template
+
+
     def _emit_progress(self, progress: int, message: str) -> None:
         """Best-effort bridge from pipeline stages to task SSE progress."""
         callback = getattr(self, "progress_callback", None)
@@ -467,7 +493,7 @@ class StockAnalysisPipeline:
                 target_date=daily_market_target_date,
             )
 
-            self._emit_progress(18, f"{code}: Đang lấy dữ liệu giá & giao dịch")
+            self._emit_progress(18, self._tr("{code}：正在获取行情与筹码数据", code=code))
             # 获取股票名称（先走轻量名称路径，后续若 realtime_quote 有 name 再覆盖）
             stock_name = self.fetcher_manager.get_stock_name(code, allow_realtime=False)
 
@@ -526,7 +552,7 @@ class StockAnalysisPipeline:
                     use_agent = True
                     logger.info(f"{stock_name}({code}) Auto-enabled agent mode due to configured skills: {configured_skills}")
 
-            self._emit_progress(32, f"{stock_name}: Đang tổng hợp dữ liệu cơ bản & xu hướng")
+            self._emit_progress(32, self._tr("{stock_name}：正在聚合基本面与趋势数据", stock_name=stock_name))
 
             # Step 2.5: 基本面能力聚合（统一入口，异常降级）
             # - 失败时返回 partial/failed，不影响既有技术面/新闻链路
@@ -592,7 +618,7 @@ class StockAnalysisPipeline:
 
             if use_agent:
                 logger.info(f"{stock_name}({code}) 启用 Agent 模式进行分析")
-                self._emit_progress(58, f"{stock_name}: Đang chuyển luồng phân tích Agent")
+                self._emit_progress(58, self._tr("{stock_name}：正在切换 Agent 分析链路", stock_name=stock_name))
                 return self._analyze_with_agent(
                     code,
                     report_type,
@@ -617,7 +643,7 @@ class StockAnalysisPipeline:
                 market=market or "cn",
             )
             news_result_count: Optional[int] = None
-            self._emit_progress(46, f"{stock_name}: Đang tìm tin tức & dư luận")
+            self._emit_progress(46, self._tr("{stock_name}：正在检索新闻与舆情", stock_name=stock_name))
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
 
@@ -684,7 +710,7 @@ class StockAnalysisPipeline:
                 )
 
             # Step 5: 获取分析上下文（技术面数据）
-            self._emit_progress(58, f"{stock_name}: Đang chuẩn bị ngữ cảnh phân tích")
+            self._emit_progress(58, self._tr("{stock_name}：正在整理分析上下文", stock_name=stock_name))
             context = self._get_analysis_context_with_market_fallback(code)
 
             if context is None:
@@ -757,10 +783,11 @@ class StockAnalysisPipeline:
                 llm_progress_state["last_progress"] = dynamic_progress
                 self._emit_progress(
                     dynamic_progress,
-                    f"{stock_name}: LLM đang tạo kết quả phân tích (đã nhận {chars_received} ký tự)",
+                    self._tr("{stock_name}：LLM 正在生成分析结果（已接收 {chars_received} 字符）",
+                    stock_name=stock_name, chars_received=chars_received),
                 )
 
-            self._emit_progress(64, f"{stock_name}: Đang yêu cầu LLM tạo báo cáo")
+            self._emit_progress(64, self._tr("{stock_name}：正在请求 LLM 生成报告", stock_name=stock_name))
             llm_started_at = time.monotonic()
             try:
                 record_llm_run_started(
@@ -816,7 +843,7 @@ class StockAnalysisPipeline:
 
             # Step 7.5: 填充分析时的价格信息到 result
             if result:
-                self._emit_progress(94, f"{stock_name}: Đang kiểm tra & sắp xếp kết quả phân tích")
+                self._emit_progress(94, self._tr("{stock_name}：正在校验并整理分析结果", stock_name=stock_name))
                 result.query_id = query_id
                 realtime_data = enhanced_context.get('realtime', {})
                 result.current_price = realtime_data.get('price')
@@ -867,7 +894,7 @@ class StockAnalysisPipeline:
             # Step 8: 保存分析历史记录
             if result and result.success:
                 try:
-                    self._emit_progress(97, f"{stock_name}: Đang lưu báo cáo phân tích")
+                    self._emit_progress(97, self._tr("{stock_name}：正在保存分析报告", stock_name=stock_name))
                     context_snapshot = self._build_context_snapshot(
                         enhanced_context=enhanced_context,
                         news_content=news_context,
@@ -3121,7 +3148,7 @@ class StockAnalysisPipeline:
                 trigger_source=getattr(self, "query_source", None),
             )
         try:
-            self._emit_progress(12, f"{code}: Đang chuẩn bị tác vụ phân tích")
+            self._emit_progress(12, self._tr("{code}：正在准备分析任务", code=code))
             # Step 1: 获取并保存数据
             success, error = self.fetch_and_save_stock_data(
                 code, current_time=current_time
@@ -3131,7 +3158,7 @@ class StockAnalysisPipeline:
                 logger.warning(f"[{code}] 数据获取失败: {error}")
                 # 即使获取失败，也尝试用已有数据分析
             else:
-                self._emit_progress(16, f"{code}: Đã chuẩn bị xong dữ liệu giá")
+                self._emit_progress(16, self._tr("{code}：行情数据准备完成", code=code))
             
             # Step 2: AI 分析
             if skip_analysis:
