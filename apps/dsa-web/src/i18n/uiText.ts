@@ -1904,7 +1904,12 @@ const en: Record<UiTextKey, string> = {
   'settings.envDockerNote': 'In Docker deployments, --env-file and Compose env_file inject environment variables only at startup. This export/import area uses the backend active .env file. To keep WebUI-saved values across container rebuilds, point ENV_FILE to a writable data-volume file such as /app/data/runtime.env and avoid keeping same-name old values in the startup environment.',
 };
 
-const vi: Record<UiTextKey, string> = {
+// fork VN: khai bao PARTIAL roi phu len `en` khi export (xem `vi` ben duoi).
+// Ly do: moi lan merge upstream ho them hang chuc key UI moi; neu bat buoc `vi`
+// phai du thi build vo ngay, con neu de thieu thi t() tra undefined va UI hien
+// "undefined". Phu len `en` cho ket qua: key da dich -> tieng Viet, key chua dich
+// -> TIENG ANH (dung duoc, khong vo), va them ban dich sau la viec cong don.
+const viOverrides: Partial<Record<UiTextKey, string>> = {
   'common.cancel': 'Hủy',
   'common.close': 'Đóng',
   'common.closeDrawer': 'Đóng ngăn',
@@ -2399,12 +2404,6 @@ const vi: Record<UiTextKey, string> = {
   'settings.activePanelDescription': 'Dùng thẻ trường thống nhất để quản lý cấu hình hệ thống của phân loại hiện tại.',
   'settings.activePanelTitle': 'Các mục cấu hình của phân loại hiện tại',
   'settings.agentSettings': 'Cài đặt Agent',
-  'settings.alphaSift': 'Lọc cổ phiếu AlphaSift',
-  'settings.alphaSiftDescription': 'Bật khả năng lọc cổ phiếu thử nghiệm AlphaSift tích hợp sẵn.',
-  'settings.alphaSiftDisabled': 'Lọc cổ phiếu chưa bật',
-  'settings.alphaSiftEnabled': 'Lọc cổ phiếu đã bật',
-  'settings.alphaSiftRisk': 'Cảnh báo tính năng thử nghiệm và rủi ro: kết quả lọc cổ phiếu chỉ dùng để nghiên cứu và hỗ trợ ra quyết định, không phải khuyến nghị đầu tư; thị trường có rủi ro, quyết định giao dịch cùng lãi lỗ do người dùng tự chịu trách nhiệm.',
-  'settings.alphaSiftSummary': 'Khi bật, thanh điều hướng bên trái sẽ hiển thị “Lọc cổ phiếu”; chiến lược và ứng viên đến từ AlphaSift, DSA bổ sung ngữ cảnh giá, cơ bản và tin tức.',
   'settings.authCurrentPassword': 'Mật khẩu quản trị hiện tại',
   'settings.authDescription': 'Quản lý xác thực mật khẩu quản trị để bảo vệ an toàn cấu hình hệ thống của bạn.',
   'settings.authDisabled': 'Chưa bật',
@@ -2478,12 +2477,6 @@ const vi: Record<UiTextKey, string> = {
   'settings.disableAuth': 'Tắt xác thực',
   'settings.keepAuthDisabled': 'Giữ trạng thái tắt',
   'settings.keepAuthEnabled': 'Giữ trạng thái bật',
-  'settings.enableAlphaSift': 'Bật lọc cổ phiếu',
-  'settings.disableAlphaSift': 'Tắt lọc cổ phiếu',
-  'settings.enablingAlphaSift': 'Đang bật...',
-  'settings.disablingAlphaSift': 'Đang tắt...',
-  'settings.enabledAlphaSiftSuccess': 'Đã bật lọc cổ phiếu AlphaSift.',
-  'settings.disabledAlphaSiftSuccess': 'Đã tắt lọc cổ phiếu AlphaSift.',
   'settings.schedulerAddTime': 'Thêm thời gian',
   'settings.schedulerDescription': 'Cấu hình thời gian thực thi hằng ngày của phân tích tự động; sau khi lưu, các tiến trình Web/API/Desktop chạy lâu dài sẽ áp dụng cấu hình mới.',
   'settings.schedulerDisabled': 'Chưa bật',
@@ -2583,21 +2576,28 @@ const vi: Record<UiTextKey, string> = {
   'settings.saveRetry': 'Thử lưu lại',
   'settings.saving': 'Đang lưu...',
   'settings.updateBuildDescription': 'Sau khi chạy lại build frontend hoặc build ảnh Docker, mã build và thời gian build tại đây sẽ cập nhật, có thể dùng để xác nhận tài nguyên trang hiện tại đã được chuyển đổi hay chưa.',
-  'settings.versionBuildId': 'Mã build',
   'settings.versionBuildTime': 'Thời gian build',
   'settings.versionDesktop': 'Phiên bản bản máy tính',
   'settings.versionInfo': 'Thông tin phiên bản',
   'settings.versionInfoDescription': 'Dùng để xác nhận tài nguyên tĩnh WebUI hiện tại đã chuyển sang bản build mới nhất hay chưa.',
   'settings.versionWebui': 'Phiên bản WebUI',
-  'settings.viewConfigItems': 'Xem mục cấu hình',
   'settings.envExportNote': 'Nội dung xuất chỉ bao gồm cấu hình đã lưu hiện tại, không bao gồm bản nháp cục bộ chưa lưu trên trang.',
   'settings.envDockerNote': 'Trong triển khai Docker, `--env-file` / Compose `env_file` chỉ tiêm biến môi trường khi khởi động; nội dung xuất/nhập tại đây là tệp `.env` đang hoạt động của phía sau. Nếu muốn giữ giá trị WebUI đã lưu qua các lần dựng lại container, hãy trỏ `ENV_FILE` tới tệp ổ dữ liệu ghi được như `/app/data/runtime.env` và tránh tiếp tục giữ giá trị cũ trùng tên trong môi trường khởi động.',
 };
+
+// Key chua co ban dich tieng Viet se rot ve tieng Anh thay vi undefined.
+const vi: Record<UiTextKey, string> = { ...en, ...viOverrides };
 
 export const UI_TEXT: Record<UiLanguage, Record<UiTextKey, string>> = {
   zh,
   en,
   vi,
+};
+
+/** So key da dich sang tieng Viet / tong so key — dung cho test theo doi tien do. */
+export const VI_TRANSLATION_COVERAGE = {
+  translated: Object.keys(viOverrides).length,
+  total: Object.keys(zh).length,
 };
 
 export type UiTextParams = Record<string, string | number>;

@@ -147,6 +147,11 @@ const RISK_TAG_TEXT = {
     stock_theme_evidence_partial: '종목 보드가 테마 랭킹과 일치하지 않았습니다',
     board_membership_missing: '종목 보드 근거가 없어 테마 위치를 판단할 수 없습니다',
   },
+  vi: {
+    theme_data_partial: 'Dữ liệu chủ đề thị trường chưa đầy đủ',
+    stock_theme_evidence_partial: 'Nhóm ngành của mã không khớp bảng xếp hạng chủ đề',
+    board_membership_missing: 'Thiếu bằng chứng nhóm ngành của mã, không xác định được vị trí chủ đề',
+  },
 } as const;
 
 const formatItem = (item: RankedThemeItem): string => {

@@ -140,6 +140,7 @@ const TEXT = {
     title: 'Khối dữ liệu đầu vào',
     counts: 'Thống kê trạng thái',
     source: 'Nguồn',
+    sourceUnavailable: 'Chưa ghi nhận nguồn dữ liệu đầu vào',
     warnings: 'Cảnh báo',
     missingReasons: 'Lý do thiếu',
     inputScope: 'Dữ liệu đầu vào phân tích',
@@ -148,6 +149,7 @@ const TEXT = {
     limitations: 'Giới hạn dữ liệu',
     newsResultCount: 'Số kết quả tin',
     triggerSource: 'Nguồn kích hoạt',
+    diagnosticCode: 'Mã chẩn đoán',
     qualityLevel: {
       good: 'Tốt',
       usable: 'Dùng được',
@@ -261,6 +263,7 @@ const UNKNOWN_REASON_DETAILS: Record<ReportLanguage, string> = {
   zh: '未记录明确原因；请结合状态、来源和告警排查',
   en: 'No specific reason was recorded; review the status, source, and warnings',
   ko: '명확한 원인이 기록되지 않았습니다. 상태, 출처 및 경고를 함께 확인하세요',
+  vi: 'Không ghi nhận lý do cụ thể; hãy đối chiếu trạng thái, nguồn và cảnh báo để rà soát',
 };
 
 const STATUS_FALLBACK_GUIDANCE: Record<
@@ -293,6 +296,15 @@ const STATUS_FALLBACK_GUIDANCE: Record<
     stale: '이번 분석은 최신이 아닐 수 있는 데이터를 사용했습니다. 갱신 시각을 확인하고 필요하면 다시 분석하세요',
     estimated: '이번 분석은 추정 데이터를 사용했습니다. 원본 데이터와 결과를 교차 확인하세요',
     partial: '데이터의 일부만 포함되어 관련 결론이 불완전할 수 있습니다. 경고와 데이터 소스를 확인한 후 다시 분석하세요',
+  },
+  vi: {
+    missing: 'Dữ liệu không vào được phân tích lần này, kết luận liên quan có thể chưa đầy đủ; hãy kiểm tra nguồn dữ liệu, cấu hình hoặc mạng rồi phân tích lại',
+    fetch_failed: 'Lấy dữ liệu thất bại, phân tích lần này không dùng dữ liệu đó; hãy kiểm tra nguồn dữ liệu, mạng hoặc giới hạn tần suất rồi phân tích lại',
+    not_supported: 'Thị trường hoặc mã hiện tại không hỗ trợ dữ liệu này nên không được dùng; hãy kết hợp các chỉ báo khác để đánh giá',
+    fallback: 'Dữ liệu lấy từ nguồn dự phòng, độ chính xác có thể thấp hơn; hãy diễn giải thận trọng',
+    stale: 'Dữ liệu đã lỗi thời, có thể không phản ánh trạng thái hiện tại; hãy làm mới nguồn rồi phân tích lại',
+    estimated: 'Dữ liệu là giá trị ước tính chứ không phải số liệu thật; hãy diễn giải thận trọng',
+    partial: 'Dữ liệu chỉ có một phần, kết luận liên quan có thể chưa đầy đủ',
   },
 };
 

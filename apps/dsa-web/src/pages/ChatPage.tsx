@@ -32,7 +32,6 @@ import { extractStockCodesFromMessage } from '../utils/chatStockCode';
 import { findMatchingStockCode, includesStockCode, normalizeStockCode } from '../utils/stockCode';
 import { useStockIndex } from '../hooks/useStockIndex';
 import type { StockIndexItem } from '../types/stockIndex';
-import { useUiLanguage } from '../contexts/UiLanguageContext';
 
 type LocalText = Record<UiLanguage, string>;
 

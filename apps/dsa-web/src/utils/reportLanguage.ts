@@ -162,6 +162,11 @@ const REPORT_TEXT = {
     laggingBoard: 'Tụt hậu',
     neutralBoard: 'Trung tính',
     reanalyze: 'Phân tích lại',
+    generateShareImage: 'Chia sẻ',
+    generatingShareImage: 'Đang tạo...',
+    shareImageReadyToShare: 'Nhấn lần nữa để chia sẻ',
+    shareImageReady: 'Đã tạo xong',
+    shareImageFailed: 'Thử lại',
   },
   ko: {
     keyInsights: '핵심 인사이트',

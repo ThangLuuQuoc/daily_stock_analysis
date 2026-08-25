@@ -344,6 +344,10 @@ const MARKET_REVIEW_TEXT: Record<ReportLanguage, {
     last: 'Mới nhất',
     change: 'Biến động',
     highLow: 'Cao/Thấp',
+    industryBoards: 'Nhóm ngành',
+    conceptBoards: 'Nhóm chủ đề',
+    leading: 'Dẫn dắt tăng',
+    lagging: 'Dẫn dắt giảm',
   },
   ko: {
     reviewSummary: '리뷰 요약',
