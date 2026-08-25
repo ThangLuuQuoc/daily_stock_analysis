@@ -148,6 +148,39 @@ class ViCoverageTest(unittest.TestCase):
         finally:
             vi_overlay.VI_TRANSLATIONS.pop("_DICT_KHONG_TON_TAI_TRANSLATIONS", None)
 
+    def test_moi_dict_phang_by_language_deu_co_vi(self):
+        """Quet MOI dict phang ``{lang: text}`` trong report_language.py.
+
+        Nhom nay tra thang bang ``d[language]`` nen thieu khoa "vi" la KeyError
+        LUC CHAY. Da xay ra that: `AI 分析 HPG(HPG) 失败: 'vi'`
+        (logs/api_server_20260625.log) — `_format_prompt` goi `get_unknown_text`
+        roi KeyError bi nhanh `except Exception` nuot, moi phan tich tra ve ket
+        qua trung tinh gia (score 50) thay vi bao loi.
+
+        Upstream them dict phang moi -> test nay do ngay, khong doi toi runtime.
+        """
+        import src.report_language as rl
+
+        thieu = []
+        for name in dir(rl):
+            obj = getattr(rl, name)
+            if not isinstance(obj, dict) or not obj:
+                continue
+            keys = set(obj)
+            la_dict_phang = (
+                {"zh", "en"} <= keys
+                and all(not isinstance(v, dict) for v in obj.values())
+            )
+            if la_dict_phang and "vi" not in keys:
+                thieu.append(name)
+
+        self.assertEqual(
+            thieu, [],
+            "Dict phang thieu khoa 'vi' -> KeyError luc chay. Them vao "
+            "VI_FLAT_BY_LANGUAGE trong src/report_language_vi.py: " + ", ".join(thieu),
+        )
+
+
 
 if __name__ == "__main__":
     unittest.main()

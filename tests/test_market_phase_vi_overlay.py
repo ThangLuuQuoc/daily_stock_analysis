@@ -55,14 +55,21 @@ class MarketPhasePromptViTest(unittest.TestCase):
         self.assertIn("Market Phase Context", out)
         self.assertFalse(_CJK(out))
 
-    def test_ko_khong_con_nhan_tieng_viet(self):
-        """Upstream them `ko` (v3.25.0) -> roi vao nhanh else->zh.
+    def test_ko_dung_khung_tieng_anh_nhu_upstream(self):
+        """`ko` phai dung khung tieng Anh, y het `en` (hanh vi cua upstream).
 
-        Truoc Phase 3 nhanh do la tieng Viet, tuc merge `ko` ve se cho bao cao
-        Han Quoc bang tieng Viet. Gio phai la tieng Trung (hanh vi upstream).
+        Upstream: `lang = "en" if ... in {"en", "ko"} else "zh"` — bao cao Han
+        Quoc muon khung tieng Anh, chi thi ngon ngu dau ra moi ep sang tieng Han.
+
+        Test nay tung khang dinh SAI (ky vong tieng Trung) vi ban than no ghi lai
+        mot regression: dot refactor overlay da rut gon dieu kien thanh
+        `== "en"`, lam `ko` roi vao nhanh zh. Nay dieu kien da khoi phuc.
         """
-        out = mpp.format_market_phase_prompt_section(_CTX, report_language="ko")
-        self.assertIn("市场阶段上下文", out)
+        ko = mpp.format_market_phase_prompt_section(_CTX, report_language="ko")
+        en = mpp.format_market_phase_prompt_section(_CTX, report_language="en")
+        self.assertEqual(ko, en)
+        self.assertIn("Market Phase Context", ko)
+        self.assertFalse(_CJK(ko))
 
     def test_bao_phu_phase_labels(self):
         upstream = set(mpp._PHASE_LABELS_ZH)

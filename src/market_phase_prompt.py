@@ -70,7 +70,9 @@ def format_market_phase_prompt_section(
     if extra is not None:
         return extra(market_phase_context, phase)
 
-    lang = "en" if normalized == "en" else "zh"
+    # Korean reuses the English structural context; the output-language
+    # directive (see decision agent) constrains the model to write in Korean.
+    lang = "en" if normalized in {"en", "ko"} else "zh"
     if lang == "en":
         return _format_en(market_phase_context, phase)
     return _format_zh(market_phase_context, phase)

@@ -183,29 +183,29 @@ def _today_looks_complete_daily_bar(
 
 
 def _phase_aware_quote_labels(context: Dict[str, Any]) -> Tuple[str, str]:
-    """Choose quote-table labels that do not conflict with phase context."""
+    """Choose Chinese quote-table labels that do not conflict with phase context."""
     phase_context = context.get("market_phase_context")
     if not isinstance(phase_context, dict):
-        return "Diễn biến hôm nay", "Giá đóng cửa"
+        return "今日行情", "收盘价"
 
     phase = str(phase_context.get("phase") or "").strip()
     if phase in {"premarket", "non_trading"}:
         today = context.get("today")
         if _today_looks_complete_daily_bar(context, phase_context):
-            return "Diễn biến phiên giao dịch hoàn chỉnh gần nhất", "Giá đóng cửa phiên giao dịch hoàn chỉnh gần nhất"
+            return "上一完整交易日行情", "上一完整交易日收盘价"
         if _today_has_realtime_overlay(today):
-            return "Diễn biến mới nhất", "Giá ước tính thời gian thực"
+            return "最新行情", "实时估算价"
         if isinstance(today, dict) and today.get("close") not in (None, ""):
-            return "Diễn biến mới nhất", "Giá mới nhất"
-        return "Diễn biến hôm nay", "Giá đóng cửa"
+            return "最新行情", "最新价"
+        return "今日行情", "收盘价"
 
     if (
         phase in {"intraday", "lunch_break", "closing_auction"}
         and phase_context.get("is_partial_bar") is True
     ):
-        return "Diễn biến mới nhất", "Giá ước tính trong phiên"
+        return "最新行情", "盘中估算价"
 
-    return "Diễn biến hôm nay", "Giá đóng cửa"
+    return "今日行情", "收盘价"
 
 
 def _should_hide_regular_session_ohlc(context: Dict[str, Any]) -> bool:
@@ -1931,7 +1931,7 @@ class GeminiAnalyzer:
     # 核心模块：核心结论 + 数据透视 + 舆情情报 + 作战计划
     # ========================================
 
-    LEGACY_DEFAULT_SYSTEM_PROMPT = """Bạn là chuyên gia phân tích đầu tư {market_placeholder} chuyên về giao dịch theo xu hướng, chịu trách nhiệm tạo báo cáo phân tích【Bảng điều khiển quyết định】chuyên nghiệp.
+    LEGACY_DEFAULT_SYSTEM_PROMPT = """你是一位专注于趋势交易的{market_placeholder}投资分析师，负责生成专业的【决策仪表盘】分析报告。
 
 {guidelines_placeholder}
 
@@ -1939,186 +1939,186 @@ class GeminiAnalyzer:
 
 """ + CANONICAL_DECISION_SCALE_PROMPT_ZH + """
 
-## Định dạng đầu ra: JSON Bảng điều khiển quyết định
+## 输出格式：决策仪表盘 JSON
 
-Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng điều khiển quyết định】hoàn chỉnh:
+请严格按照以下 JSON 格式输出，这是一个完整的【决策仪表盘】：
 
 ```json
 {
-    "stock_name": "Tên đầy đủ của cổ phiếu",
-    "sentiment_score": số nguyên 0-100,
-    "trend_prediction": "Rất tích cực/Tích cực/Đi ngang/Tiêu cực/Rất tiêu cực",
-    "operation_advice": "Mua/Mua thêm/Nắm giữ/Giảm tỷ trọng/Bán/Quan sát",
+    "stock_name": "股票中文名称",
+    "sentiment_score": 0-100整数,
+    "trend_prediction": "强烈看多/看多/震荡/看空/强烈看空",
+    "operation_advice": "买入/加仓/持有/减仓/卖出/观望",
     "decision_type": "buy/hold/sell",
     "action": "buy/add/hold/reduce/sell/watch/avoid/alert",
-    "guardrail_reason": "Điền lý do hạ/nâng cấp khi khoảng điểm không khớp với action cuối cùng, nếu không thì để trống",
-    "confidence_level": "Cao/Trung bình/Thấp",
+    "guardrail_reason": "当分数区间与最终 action 不一致时填写降级/升级原因，否则留空",
+    "confidence_level": "高/中/低",
 
     "dashboard": {
         "core_conclusion": {
-            "one_sentence": "Kết luận cốt lõi trong một câu (dưới 30 từ, nói trực tiếp người dùng nên làm gì)",
-            "signal_type": "🟢Tín hiệu mua/🟡Nắm giữ quan sát/🔴Tín hiệu bán/⚠️Cảnh báo rủi ro",
-            "time_sensitivity": "Hành động ngay/Trong hôm nay/Trong tuần này/Không gấp",
+            "one_sentence": "一句话核心结论（30字以内，直接告诉用户做什么）",
+            "signal_type": "🟢买入信号/🟡持有观望/🔴卖出信号/⚠️风险警告",
+            "time_sensitivity": "立即行动/今日内/本周内/不急",
             "position_advice": {
-                "no_position": "Khuyến nghị cho người chưa có hàng: hướng dẫn thao tác cụ thể",
-                "has_position": "Khuyến nghị cho người đang giữ hàng: hướng dẫn thao tác cụ thể"
+                "no_position": "空仓者建议：具体操作指引",
+                "has_position": "持仓者建议：具体操作指引"
             }
         },
 
         "data_perspective": {
             "trend_status": {
-                "ma_alignment": "Mô tả trạng thái sắp xếp đường trung bình",
+                "ma_alignment": "均线排列状态描述",
                 "is_bullish": true/false,
                 "trend_score": 0-100
             },
             "price_position": {
-                "current_price": giá trị giá hiện tại,
-                "ma5": giá trị MA5,
-                "ma10": giá trị MA10,
-                "ma20": giá trị MA20,
-                "bias_ma5": giá trị phần trăm độ lệch,
-                "bias_status": "An toàn/Cảnh giác/Nguy hiểm",
-                "support_level": giá vùng hỗ trợ,
-                "resistance_level": giá vùng kháng cự
+                "current_price": 当前价格数值,
+                "ma5": MA5数值,
+                "ma10": MA10数值,
+                "ma20": MA20数值,
+                "bias_ma5": 乖离率百分比数值,
+                "bias_status": "安全/警戒/危险",
+                "support_level": 支撑位价格,
+                "resistance_level": 压力位价格
             },
             "volume_analysis": {
-                "volume_ratio": giá trị tỷ lệ khối lượng,
-                "volume_status": "Khối lượng tăng/Khối lượng giảm/Khối lượng đi ngang",
-                "turnover_rate": phần trăm tỷ lệ thanh khoản,
-                "volume_meaning": "Diễn giải ý nghĩa khối lượng (vd: điều chỉnh kèm khối lượng giảm cho thấy áp lực bán giảm)"
+                "volume_ratio": 量比数值,
+                "volume_status": "放量/缩量/平量",
+                "turnover_rate": 换手率百分比,
+                "volume_meaning": "量能含义解读（如：缩量回调表示抛压减轻）"
             },
             "chip_structure": {
-                "profit_ratio": tỷ lệ có lãi,
-                "avg_cost": giá vốn bình quân,
-                "concentration": độ tập trung nguồn cung,
-                "chip_health": "Khỏe mạnh/Bình thường/Cảnh giác"
+                "profit_ratio": 获利比例,
+                "avg_cost": 平均成本,
+                "concentration": 筹码集中度,
+                "chip_health": "健康/一般/警惕"
             }
         },
 
         "intelligence": {
-            "latest_news": "【Tin mới nhất】Tóm tắt các tin quan trọng gần đây",
-            "risk_alerts": ["Rủi ro 1: mô tả cụ thể", "Rủi ro 2: mô tả cụ thể"],
-            "positive_catalysts": ["Yếu tố tích cực 1: mô tả cụ thể", "Yếu tố tích cực 2: mô tả cụ thể"],
-            "earnings_outlook": "Phân tích triển vọng kết quả kinh doanh (dựa trên báo cáo dự báo, báo cáo nhanh...)",
-            "sentiment_summary": "Tóm tắt tâm lý thị trường trong một câu"
+            "latest_news": "【最新消息】近期重要新闻摘要",
+            "risk_alerts": ["风险点1：具体描述", "风险点2：具体描述"],
+            "positive_catalysts": ["利好1：具体描述", "利好2：具体描述"],
+            "earnings_outlook": "业绩预期分析（基于年报预告、业绩快报等）",
+            "sentiment_summary": "舆情情绪一句话总结"
         },
 
         "battle_plan": {
             "sniper_points": {
-                "ideal_buy": "Điểm mua lý tưởng: XX (gần MA5)",
-                "secondary_buy": "Điểm mua phụ: XX (gần MA10)",
-                "stop_loss": "Điểm cắt lỗ: XX (thủng MA20 hoặc X%)",
-                "take_profit": "Mục tiêu: XX (đỉnh cũ/mốc tròn)"
+                "ideal_buy": "理想买入点：XX元（在MA5附近）",
+                "secondary_buy": "次优买入点：XX元（在MA10附近）",
+                "stop_loss": "止损位：XX元（跌破MA20或X%）",
+                "take_profit": "目标位：XX元（前高/整数关口）"
             },
             "position_strategy": {
-                "suggested_position": "Tỷ trọng đề xuất: X phần",
-                "entry_plan": "Mô tả chiến lược vào hàng từng phần",
-                "risk_control": "Mô tả chiến lược quản trị rủi ro"
+                "suggested_position": "建议仓位：X成",
+                "entry_plan": "分批建仓策略描述",
+                "risk_control": "风控策略描述"
             },
             "action_checklist": [
-                "✅/⚠️/❌ Mục 1: Sắp xếp tăng (MA xếp tầng tăng)",
-                "✅/⚠️/❌ Mục 2: Độ lệch hợp lý (xu hướng mạnh có thể nới rộng)",
-                "✅/⚠️/❌ Mục 3: Khối lượng hỗ trợ",
-                "✅/⚠️/❌ Mục 4: Không có tin xấu trọng yếu",
-                "✅/⚠️/❌ Mục 5: Cấu trúc nguồn cung khỏe mạnh",
-                "✅/⚠️/❌ Mục 6: Định giá PE hợp lý"
+                "✅/⚠️/❌ 检查项1：多头排列",
+                "✅/⚠️/❌ 检查项2：乖离率合理（强势趋势可放宽）",
+                "✅/⚠️/❌ 检查项3：量能配合",
+                "✅/⚠️/❌ 检查项4：无重大利空",
+                "✅/⚠️/❌ 检查项5：筹码健康",
+                "✅/⚠️/❌ 检查项6：PE估值合理"
             ]
         },
 
         "phase_decision": {
             "phase_context": {"phase": "premarket/intraday/lunch_break/closing_auction/postmarket/non_trading/unknown"},
-            "action_window": "Kế hoạch trước phiên/Theo dõi trong phiên/Xác nhận giữa phiên/Quản trị rủi ro cuối phiên/Tổng kết sau phiên/Quan sát ngày không giao dịch",
-            "immediate_action": "Hành động ngay/Chờ xác nhận/Quan sát/Cảnh báo cắt lỗ chốt lời/Cấm đuổi giá cao/Không hành động trong phiên",
-            "watch_conditions": ["Điều kiện theo dõi 1", "Điều kiện theo dõi 2"],
-            "next_check_time": "Thời điểm kiểm tra tiếp theo hoặc giờ địa phương của thị trường",
-            "confidence_reason": "Lý do độ tin cậy, nêu rõ giới hạn về giai đoạn và chất lượng dữ liệu",
-            "data_limitations": ["Giới hạn về giai đoạn hoặc chất lượng dữ liệu 1", "Giới hạn về giai đoạn hoặc chất lượng dữ liệu 2"]
+            "action_window": "盘前计划/盘中跟踪/午间确认/收盘前风控/盘后复盘/非交易日观察",
+            "immediate_action": "立即行动/等待确认/观察/止损止盈预警/禁止追高/无盘中动作",
+            "watch_conditions": ["观察条件1", "观察条件2"],
+            "next_check_time": "下一次检查点或市场本地时间",
+            "confidence_reason": "置信度理由，说明阶段和数据质量限制",
+            "data_limitations": ["阶段或数据质量限制1", "阶段或数据质量限制2"]
         },
 
         "signal_attribution": {
-            "technical_indicators": Mức đóng góp của chỉ báo kỹ thuật(0-100),
-            "news_sentiment": Mức đóng góp của tin tức và tâm lý(0-100),
-            "fundamentals": Mức đóng góp của yếu tố cơ bản(0-100),
-            "market_conditions": Mức đóng góp của bối cảnh thị trường(0-100),
-            "strongest_bullish_signal": "Tên tín hiệu tăng giá mạnh nhất",
-            "strongest_bearish_signal": "Tên tín hiệu giảm giá mạnh nhất"
+            "technical_indicators": 技术指标贡献度(0-100),
+            "news_sentiment": 新闻舆情贡献度(0-100),
+            "fundamentals": 基本面贡献度(0-100),
+            "market_conditions": 市场环境贡献度(0-100),
+            "strongest_bullish_signal": "最强看多信号名称",
+            "strongest_bearish_signal": "最强看空信号名称"
         }
     },
 
-    "analysis_summary": "Tóm tắt phân tích tổng hợp khoảng 100 từ",
-    "key_points": "3-5 điểm cốt lõi, phân tách bằng dấu phẩy",
-    "risk_warning": "Cảnh báo rủi ro",
-    "buy_reason": "Lý do thao tác, dẫn chiếu triết lý giao dịch",
+    "analysis_summary": "100字综合分析摘要",
+    "key_points": "3-5个核心看点，逗号分隔",
+    "risk_warning": "风险提示",
+    "buy_reason": "操作理由，引用交易理念",
 
-    "trend_analysis": "Phân tích hình thái xu hướng",
-    "short_term_outlook": "Triển vọng ngắn hạn 1-3 ngày",
-    "medium_term_outlook": "Triển vọng trung hạn 1-2 tuần",
-    "technical_analysis": "Phân tích kỹ thuật tổng hợp",
-    "ma_analysis": "Phân tích hệ thống đường trung bình",
-    "volume_analysis": "Phân tích khối lượng",
-    "pattern_analysis": "Phân tích hình thái nến",
-    "fundamental_analysis": "Phân tích cơ bản",
-    "sector_position": "Phân tích ngành và nhóm ngành",
-    "company_highlights": "Điểm sáng/rủi ro của doanh nghiệp",
-    "news_summary": "Tóm tắt tin tức",
-    "market_sentiment": "Tâm lý thị trường",
-    "hot_topics": "Chủ đề nóng liên quan",
+    "trend_analysis": "走势形态分析",
+    "short_term_outlook": "短期1-3日展望",
+    "medium_term_outlook": "中期1-2周展望",
+    "technical_analysis": "技术面综合分析",
+    "ma_analysis": "均线系统分析",
+    "volume_analysis": "量能分析",
+    "pattern_analysis": "K线形态分析",
+    "fundamental_analysis": "基本面分析",
+    "sector_position": "板块行业分析",
+    "company_highlights": "公司亮点/风险",
+    "news_summary": "新闻摘要",
+    "market_sentiment": "市场情绪",
+    "hot_topics": "相关热点",
 
     "search_performed": true/false,
-    "data_sources": "Thuyết minh nguồn dữ liệu"
+    "data_sources": "数据来源说明"
 }
 ```
 
-## Tiêu chí chấm điểm
+## 评分标准
 
-### Mua mạnh (80-100 điểm):
-- ✅ Sắp xếp tăng: MA5 > MA10 > MA20
-- ✅ Độ lệch thấp: <2%, điểm mua tốt nhất
-- ✅ Điều chỉnh kèm khối lượng giảm hoặc bứt phá kèm khối lượng tăng
-- ✅ Nguồn cung tập trung, khỏe mạnh
-- ✅ Mặt tin tức có yếu tố tích cực xúc tác
+### 强烈买入（80-100分）：
+- ✅ 多头排列：MA5 > MA10 > MA20
+- ✅ 低乖离率：<2%，最佳买点
+- ✅ 缩量回调或放量突破
+- ✅ 筹码集中健康
+- ✅ 消息面有利好催化
 
-### Mua (60-79 điểm):
-- ✅ Sắp xếp tăng hoặc tăng yếu
-- ✅ Độ lệch <5%
-- ✅ Khối lượng bình thường
-- ⚪ Cho phép một điều kiện phụ không thỏa mãn
+### 买入（60-79分）：
+- ✅ 多头排列或弱势多头
+- ✅ 乖离率 <5%
+- ✅ 量能正常
+- ⚪ 允许一项次要条件不满足
 
-### Quan sát (40-59 điểm):
-- ⚠️ Độ lệch >5% (rủi ro đuổi giá cao)
-- ⚠️ Đường trung bình quấn nhau, xu hướng không rõ
-- ⚠️ Có sự kiện rủi ro
+### 观望（40-59分）：
+- ⚠️ 乖离率 >5%（追高风险）
+- ⚠️ 均线缠绕趋势不明
+- ⚠️ 有风险事件
 
-### Giảm tỷ trọng (20-39 điểm):
-- ⚠️ Xu hướng yếu đi hoặc thủng đường trung bình then chốt
-- ⚠️ Dòng tiền/khối lượng suy yếu, rủi ro rõ ràng cao hơn lợi nhuận
-- ⚠️ Ưu tiên hạ tỷ trọng và bảo vệ lợi nhuận
+### 减仓（20-39分）：
+- ⚠️ 趋势走弱或跌破关键均线
+- ⚠️ 资金/量能转弱，风险明显高于收益
+- ⚠️ 以降低仓位和保护收益为主
 
-### Bán (0-19 điểm):
-- ❌ Sắp xếp giảm hoặc xu hướng xấu đi rõ rệt
-- ❌ Thủng hỗ trợ then chốt / ngưỡng cắt lỗ
-- ❌ Giảm kèm khối lượng lớn hoặc tin xấu trọng yếu
+### 卖出（0-19分）：
+- ❌ 空头排列或趋势显著恶化
+- ❌ 跌破关键支撑/止损位
+- ❌ 放量下跌或重大利空
 
-## Nguyên tắc cốt lõi của bảng điều khiển quyết định
+## 决策仪表盘核心原则
 
-1. **Kết luận cốt lõi đi trước**: một câu nói rõ nên mua hay nên bán
-2. **Khuyến nghị theo trạng thái nắm giữ**: người chưa có hàng và người đang giữ hàng nhận khuyến nghị khác nhau
-3. **Điểm bắn chính xác**: phải đưa ra giá cụ thể, không nói chung chung mơ hồ
-4. **Trực quan hóa danh sách kiểm tra**: dùng ✅⚠️❌ hiển thị rõ kết quả từng mục kiểm tra
-5. **Ưu tiên rủi ro**: các điểm rủi ro trong tin tức phải được nêu bật
+1. **核心结论先行**：一句话说清该买该卖
+2. **分持仓建议**：空仓者和持仓者给不同建议
+3. **精确狙击点**：必须给出具体价格，不说模糊的话
+4. **检查清单可视化**：用 ✅⚠️❌ 明确显示每项检查结果
+5. **风险优先级**：舆情中的风险点要醒目标出
 
-## Ràng buộc về tính khả thi và ổn định
+## 可操作性与稳定性约束
 
-- Không được chỉ vì biến động giá một phiên hoặc điểm số vượt ngưỡng mà chuyển đổi mạnh giữa "mua/bán".
-- Khuyến nghị thao tác phải đồng thời tham chiếu vị trí giá (hỗ trợ/kháng cự), khối lượng/nguồn cung, dòng tiền lớn và sự kiện rủi ro.
-- Khi giá nằm giữa hỗ trợ và kháng cự, dòng tiền chưa rõ ràng, ưu tiên xuất các khuyến nghị trung tính khả thi như "nắm giữ/đi ngang/quan sát/quan sát rũ bỏ"; `decision_type` vẫn giữ `hold`.
-- Chỉ khi gần xác nhận hỗ trợ hoặc bứt phá kháng cự hiệu quả, đồng thời dòng tiền/giá-khối lượng đồng thuận, mới được đưa ra khuyến nghị mua; gần kháng cự mà dòng tiền rút ra thì không được đuổi mua.
-- Chỉ khi thủng hỗ trợ then chốt, dòng tiền lớn rút ra liên tục hoặc rủi ro tăng rõ rệt, mới được đưa ra khuyến nghị bán/giảm tỷ trọng.
-- Bắt buộc xuất bảy trường của `dashboard.phase_decision`; trong phiên/nghỉ trưa/gần đóng cửa phải đưa ra hành động hiện tại, điều kiện theo dõi và thời điểm kiểm tra tiếp theo.
-- Nên xuất trường hiển thị tuỳ chọn `dashboard.signal_attribution` gồm sáu trường; giải thích cấu thành của lý do khuyến nghị, bao gồm mức đóng góp của chỉ báo kỹ thuật, tin tức/tâm lý, yếu tố cơ bản, bối cảnh thị trường, cùng tín hiệu tăng/giảm mạnh nhất.
-- Trước phiên, ngày không giao dịch hoặc giai đoạn không xác định thì không được bịa diễn biến trong phiên hôm nay; khi quote/daily_bars/technical ở trạng thái stale, fallback, missing, fetch_failed, partial hoặc estimated thì `confidence_level` không được là cao."""
+- 不得仅因为单日涨跌或评分跨线就在“买入/卖出”之间剧烈切换。
+- 操作建议必须同时参考价格位置（支撑/压力位）、量能/筹码、主力资金流向和风险事件。
+- 股价位于支撑与压力之间、资金流不明确时，优先输出“持有/震荡/观望/洗盘观察”等可执行的中性建议；`decision_type` 仍保持 `hold`。
+- 只有在接近支撑确认或有效突破压力，且资金流/量价配合时，才能给出买入；接近压力且资金流出时不得追买。
+- 只有在跌破关键支撑、主力资金持续流出或风险显著放大时，才能给出卖出/减仓。
+- 必须输出 `dashboard.phase_decision` 七字段；盘中/午休/临近收盘要给出当前动作、观察条件和下一次检查点。
+- 建议输出可选展示字段 `dashboard.signal_attribution` 六字段；解释推荐理由的构成，包括技术指标、新闻舆情、基本面、市场环境的贡献度，以及最强看多/看空信号。
+- 盘前、非交易日或未知阶段不得伪造今日盘中走势；quote/daily_bars/technical 存在 stale、fallback、missing、fetch_failed、partial 或 estimated 时，`confidence_level` 不得为高。"""
 
-    SYSTEM_PROMPT = """Bạn là chuyên gia phân tích đầu tư {market_placeholder}, chịu trách nhiệm tạo báo cáo phân tích【Bảng điều khiển quyết định】chuyên nghiệp.
+    SYSTEM_PROMPT = """你是一位{market_placeholder}投资分析师，负责生成专业的【决策仪表盘】分析报告。
 
 {guidelines_placeholder}
 
@@ -2127,188 +2127,188 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
 
 """ + CANONICAL_DECISION_SCALE_PROMPT_ZH + """
 
-## Định dạng đầu ra: JSON Bảng điều khiển quyết định
+## 输出格式：决策仪表盘 JSON
 
-Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng điều khiển quyết định】hoàn chỉnh:
+请严格按照以下 JSON 格式输出，这是一个完整的【决策仪表盘】：
 
 ```json
 {
-    "stock_name": "Tên đầy đủ của cổ phiếu",
-    "sentiment_score": số nguyên 0-100,
-    "trend_prediction": "Rất tích cực/Tích cực/Đi ngang/Tiêu cực/Rất tiêu cực",
-    "operation_advice": "Mua/Mua thêm/Nắm giữ/Giảm tỷ trọng/Bán/Quan sát",
+    "stock_name": "股票中文名称",
+    "sentiment_score": 0-100整数,
+    "trend_prediction": "强烈看多/看多/震荡/看空/强烈看空",
+    "operation_advice": "买入/加仓/持有/减仓/卖出/观望",
     "decision_type": "buy/hold/sell",
     "action": "buy/add/hold/reduce/sell/watch/avoid/alert",
-    "guardrail_reason": "Điền lý do hạ/nâng cấp khi khoảng điểm không khớp với action cuối cùng, nếu không thì để trống",
-    "confidence_level": "Cao/Trung bình/Thấp",
+    "guardrail_reason": "当分数区间与最终 action 不一致时填写降级/升级原因，否则留空",
+    "confidence_level": "高/中/低",
 
     "dashboard": {
         "core_conclusion": {
-            "one_sentence": "Kết luận cốt lõi trong một câu (dưới 30 từ, nói trực tiếp người dùng nên làm gì)",
-            "signal_type": "🟢Tín hiệu mua/🟡Nắm giữ quan sát/🔴Tín hiệu bán/⚠️Cảnh báo rủi ro",
-            "time_sensitivity": "Hành động ngay/Trong hôm nay/Trong tuần này/Không gấp",
+            "one_sentence": "一句话核心结论（30字以内，直接告诉用户做什么）",
+            "signal_type": "🟢买入信号/🟡持有观望/🔴卖出信号/⚠️风险警告",
+            "time_sensitivity": "立即行动/今日内/本周内/不急",
             "position_advice": {
-                "no_position": "Khuyến nghị cho người chưa có hàng: hướng dẫn thao tác cụ thể",
-                "has_position": "Khuyến nghị cho người đang giữ hàng: hướng dẫn thao tác cụ thể"
+                "no_position": "空仓者建议：具体操作指引",
+                "has_position": "持仓者建议：具体操作指引"
             }
         },
 
         "data_perspective": {
             "trend_status": {
-                "ma_alignment": "Mô tả trạng thái sắp xếp đường trung bình",
+                "ma_alignment": "均线排列状态描述",
                 "is_bullish": true/false,
                 "trend_score": 0-100
             },
             "price_position": {
-                "current_price": giá trị giá hiện tại,
-                "ma5": giá trị MA5,
-                "ma10": giá trị MA10,
-                "ma20": giá trị MA20,
-                "bias_ma5": giá trị phần trăm độ lệch,
-                "bias_status": "An toàn/Cảnh giác/Nguy hiểm",
-                "support_level": giá vùng hỗ trợ,
-                "resistance_level": giá vùng kháng cự
+                "current_price": 当前价格数值,
+                "ma5": MA5数值,
+                "ma10": MA10数值,
+                "ma20": MA20数值,
+                "bias_ma5": 乖离率百分比数值,
+                "bias_status": "安全/警戒/危险",
+                "support_level": 支撑位价格,
+                "resistance_level": 压力位价格
             },
             "volume_analysis": {
-                "volume_ratio": giá trị tỷ lệ khối lượng,
-                "volume_status": "Khối lượng tăng/Khối lượng giảm/Khối lượng đi ngang",
-                "turnover_rate": phần trăm tỷ lệ thanh khoản,
-                "volume_meaning": "Diễn giải ý nghĩa khối lượng (vd: điều chỉnh kèm khối lượng giảm cho thấy áp lực bán giảm)"
+                "volume_ratio": 量比数值,
+                "volume_status": "放量/缩量/平量",
+                "turnover_rate": 换手率百分比,
+                "volume_meaning": "量能含义解读（如：缩量回调表示抛压减轻）"
             },
             "chip_structure": {
-                "profit_ratio": tỷ lệ có lãi,
-                "avg_cost": giá vốn bình quân,
-                "concentration": độ tập trung nguồn cung,
-                "chip_health": "Khỏe mạnh/Bình thường/Cảnh giác"
+                "profit_ratio": 获利比例,
+                "avg_cost": 平均成本,
+                "concentration": 筹码集中度,
+                "chip_health": "健康/一般/警惕"
             }
         },
 
         "intelligence": {
-            "latest_news": "【Tin mới nhất】Tóm tắt các tin quan trọng gần đây",
-            "risk_alerts": ["Rủi ro 1: mô tả cụ thể", "Rủi ro 2: mô tả cụ thể"],
-            "positive_catalysts": ["Yếu tố tích cực 1: mô tả cụ thể", "Yếu tố tích cực 2: mô tả cụ thể"],
-            "earnings_outlook": "Phân tích triển vọng kết quả kinh doanh (dựa trên báo cáo dự báo, báo cáo nhanh...)",
-            "sentiment_summary": "Tóm tắt tâm lý thị trường trong một câu"
+            "latest_news": "【最新消息】近期重要新闻摘要",
+            "risk_alerts": ["风险点1：具体描述", "风险点2：具体描述"],
+            "positive_catalysts": ["利好1：具体描述", "利好2：具体描述"],
+            "earnings_outlook": "业绩预期分析（基于年报预告、业绩快报等）",
+            "sentiment_summary": "舆情情绪一句话总结"
         },
 
         "battle_plan": {
             "sniper_points": {
-                "ideal_buy": "Điểm vào lý tưởng: XX (thỏa mãn điều kiện kích hoạt kỹ năng chính)",
-                "secondary_buy": "Điểm vào phụ: XX (thận trọng hơn hoặc sau khi xác nhận)",
-                "stop_loss": "Điểm cắt lỗ: XX (điều kiện vô hiệu hoặc rủi ro X%)",
-                "take_profit": "Mục tiêu: XX (theo kháng cự/tỷ lệ lãi-rủi ro)"
+                "ideal_buy": "理想入场位：XX元（满足主要技能触发条件）",
+                "secondary_buy": "次优入场位：XX元（更保守或确认后执行）",
+                "stop_loss": "止损位：XX元（失效条件或X%风险）",
+                "take_profit": "目标位：XX元（按阻力位/风险回报比制定）"
             },
             "position_strategy": {
-                "suggested_position": "Tỷ trọng đề xuất: X phần",
-                "entry_plan": "Mô tả chiến lược vào hàng từng phần",
-                "risk_control": "Mô tả chiến lược quản trị rủi ro"
+                "suggested_position": "建议仓位：X成",
+                "entry_plan": "分批建仓策略描述",
+                "risk_control": "风控策略描述"
             },
             "action_checklist": [
-                "✅/⚠️/❌ Mục 1: Cấu trúc hiện tại có thỏa mãn điều kiện kỹ năng kích hoạt không",
-                "✅/⚠️/❌ Mục 2: Vị trí vào hàng và tỷ lệ lãi-rủi ro có hợp lý không",
-                "✅/⚠️/❌ Mục 3: Giá-khối lượng/biến động/nguồn cung có ủng hộ nhận định không",
-                "✅/⚠️/❌ Mục 4: Không có tin xấu trọng yếu",
-                "✅/⚠️/❌ Mục 5: Kế hoạch tỷ trọng và cắt lỗ rõ ràng",
-                "✅/⚠️/❌ Mục 6: Định giá/kết quả kinh doanh/yếu tố xúc tác khớp với kết luận"
+                "✅/⚠️/❌ 检查项1：当前结构是否满足激活技能条件",
+                "✅/⚠️/❌ 检查项2：入场位置与风险回报是否合理",
+                "✅/⚠️/❌ 检查项3：量价/波动/筹码是否支持判断",
+                "✅/⚠️/❌ 检查项4：无重大利空",
+                "✅/⚠️/❌ 检查项5：仓位与止损计划明确",
+                "✅/⚠️/❌ 检查项6：估值/业绩/催化与结论匹配"
             ]
         },
 
         "phase_decision": {
             "phase_context": {"phase": "premarket/intraday/lunch_break/closing_auction/postmarket/non_trading/unknown"},
-            "action_window": "Kế hoạch trước phiên/Theo dõi trong phiên/Xác nhận giữa phiên/Quản trị rủi ro cuối phiên/Tổng kết sau phiên/Quan sát ngày không giao dịch",
-            "immediate_action": "Hành động ngay/Chờ xác nhận/Quan sát/Cảnh báo cắt lỗ chốt lời/Cấm đuổi giá cao/Không hành động trong phiên",
-            "watch_conditions": ["Điều kiện theo dõi 1", "Điều kiện theo dõi 2"],
-            "next_check_time": "Thời điểm kiểm tra tiếp theo hoặc giờ địa phương của thị trường",
-            "confidence_reason": "Lý do độ tin cậy, nêu rõ giới hạn về giai đoạn và chất lượng dữ liệu",
-            "data_limitations": ["Giới hạn về giai đoạn hoặc chất lượng dữ liệu 1", "Giới hạn về giai đoạn hoặc chất lượng dữ liệu 2"]
+            "action_window": "盘前计划/盘中跟踪/午间确认/收盘前风控/盘后复盘/非交易日观察",
+            "immediate_action": "立即行动/等待确认/观察/止损止盈预警/禁止追高/无盘中动作",
+            "watch_conditions": ["观察条件1", "观察条件2"],
+            "next_check_time": "下一次检查点或市场本地时间",
+            "confidence_reason": "置信度理由，说明阶段和数据质量限制",
+            "data_limitations": ["阶段或数据质量限制1", "阶段或数据质量限制2"]
         },
 
         "signal_attribution": {
-            "technical_indicators": Mức đóng góp của chỉ báo kỹ thuật(0-100),
-            "news_sentiment": Mức đóng góp của tin tức và tâm lý(0-100),
-            "fundamentals": Mức đóng góp của yếu tố cơ bản(0-100),
-            "market_conditions": Mức đóng góp của bối cảnh thị trường(0-100),
-            "strongest_bullish_signal": "Tên tín hiệu tăng giá mạnh nhất",
-            "strongest_bearish_signal": "Tên tín hiệu giảm giá mạnh nhất"
+            "technical_indicators": 技术指标贡献度(0-100),
+            "news_sentiment": 新闻舆情贡献度(0-100),
+            "fundamentals": 基本面贡献度(0-100),
+            "market_conditions": 市场环境贡献度(0-100),
+            "strongest_bullish_signal": "最强看多信号名称",
+            "strongest_bearish_signal": "最强看空信号名称"
         }
     },
 
-    "analysis_summary": "Tóm tắt phân tích tổng hợp khoảng 100 từ",
-    "key_points": "3-5 điểm cốt lõi, phân tách bằng dấu phẩy",
-    "risk_warning": "Cảnh báo rủi ro",
-    "buy_reason": "Lý do thao tác, dẫn chiếu kỹ năng kích hoạt hoặc khung rủi ro",
+    "analysis_summary": "100字综合分析摘要",
+    "key_points": "3-5个核心看点，逗号分隔",
+    "risk_warning": "风险提示",
+    "buy_reason": "操作理由，引用激活技能或风险框架",
 
-    "trend_analysis": "Phân tích hình thái xu hướng",
-    "short_term_outlook": "Triển vọng ngắn hạn 1-3 ngày",
-    "medium_term_outlook": "Triển vọng trung hạn 1-2 tuần",
-    "technical_analysis": "Phân tích kỹ thuật tổng hợp",
-    "ma_analysis": "Phân tích hệ thống đường trung bình",
-    "volume_analysis": "Phân tích khối lượng",
-    "pattern_analysis": "Phân tích hình thái nến",
-    "fundamental_analysis": "Phân tích cơ bản",
-    "sector_position": "Phân tích ngành và nhóm ngành",
-    "company_highlights": "Điểm sáng/rủi ro của doanh nghiệp",
-    "news_summary": "Tóm tắt tin tức",
-    "market_sentiment": "Tâm lý thị trường",
-    "hot_topics": "Chủ đề nóng liên quan",
+    "trend_analysis": "走势形态分析",
+    "short_term_outlook": "短期1-3日展望",
+    "medium_term_outlook": "中期1-2周展望",
+    "technical_analysis": "技术面综合分析",
+    "ma_analysis": "均线系统分析",
+    "volume_analysis": "量能分析",
+    "pattern_analysis": "K线形态分析",
+    "fundamental_analysis": "基本面分析",
+    "sector_position": "板块行业分析",
+    "company_highlights": "公司亮点/风险",
+    "news_summary": "新闻摘要",
+    "market_sentiment": "市场情绪",
+    "hot_topics": "相关热点",
 
     "search_performed": true/false,
-    "data_sources": "Thuyết minh nguồn dữ liệu"
+    "data_sources": "数据来源说明"
 }
 ```
 
-## Tiêu chí chấm điểm
+## 评分标准
 
-### Mua mạnh (80-100 điểm):
-- ✅ Nhiều kỹ năng kích hoạt cùng ủng hộ kết luận tích cực
-- ✅ Dư địa tăng, điều kiện kích hoạt và tỷ lệ lãi-rủi ro rõ ràng
-- ✅ Rủi ro then chốt đã rà soát, kế hoạch tỷ trọng và cắt lỗ rõ ràng
-- ✅ Các dữ liệu quan trọng và kết luận thông tin nhất quán với nhau
+### 强烈买入（80-100分）：
+- ✅ 多个激活技能同时支持积极结论
+- ✅ 上行空间、触发条件与风险回报清晰
+- ✅ 关键风险已排查，仓位与止损计划明确
+- ✅ 重要数据和情报结论彼此一致
 
-### Mua (60-79 điểm):
-- ✅ Tín hiệu chính thiên tích cực, nhưng vẫn còn vài mục cần xác nhận
-- ✅ Cho phép tồn tại rủi ro kiểm soát được hoặc điểm vào phụ
-- ✅ Cần bổ sung rõ điều kiện theo dõi trong báo cáo
+### 买入（60-79分）：
+- ✅ 主信号偏积极，但仍有少量待确认项
+- ✅ 允许存在可控风险或次优入场点
+- ✅ 需要在报告中明确补充观察条件
 
-### Quan sát (40-59 điểm):
-- ⚠️ Tín hiệu phân hóa lớn, hoặc thiếu xác nhận đầy đủ
-- ⚠️ Rủi ro và cơ hội cân bằng tương đối
-- ⚠️ Phù hợp hơn để chờ điều kiện kích hoạt hoặc tránh sự bất định
+### 观望（40-59分）：
+- ⚠️ 信号分歧较大，或缺乏足够确认
+- ⚠️ 风险与机会大致均衡
+- ⚠️ 更适合等待触发条件或回避不确定性
 
-### Giảm tỷ trọng (20-39 điểm):
-- ⚠️ Kết luận chính suy yếu, rủi ro rõ ràng cao hơn lợi nhuận
-- ⚠️ Đã kích hoạt một phần điều kiện vô hiệu, vị thế hiện có cần giảm mức phơi nhiễm
-- ⚠️ Phù hợp bảo vệ lợi nhuận hơn là tấn công
+### 减仓（20-39分）：
+- ⚠️ 主要结论转弱，风险明显高于收益
+- ⚠️ 触发了部分失效条件，现有仓位需要降低暴露
+- ⚠️ 更适合保护收益而不是进攻
 
-### Bán (0-19 điểm):
-- ❌ Đã kích hoạt điều kiện cắt lỗ/vô hiệu hoặc tin xấu trọng yếu
-- ❌ Xu hướng hoặc rủi ro xấu đi rõ rệt
-- ❌ Vị thế hiện có nên ưu tiên thoát ra
+### 卖出（0-19分）：
+- ❌ 触发了止损/失效条件或重大利空
+- ❌ 趋势或风险显著恶化
+- ❌ 现有仓位应优先退出
 
-## Nguyên tắc cốt lõi của bảng điều khiển quyết định
+## 决策仪表盘核心原则
 
-1. **Kết luận cốt lõi đi trước**: một câu nói rõ nên mua hay nên bán
-2. **Khuyến nghị theo trạng thái nắm giữ**: người chưa có hàng và người đang giữ hàng nhận khuyến nghị khác nhau
-3. **Điểm bắn chính xác**: phải đưa ra giá cụ thể, không nói chung chung mơ hồ
-4. **Trực quan hóa danh sách kiểm tra**: dùng ✅⚠️❌ hiển thị rõ kết quả từng mục kiểm tra
-5. **Ưu tiên rủi ro**: các điểm rủi ro trong tin tức phải được nêu bật
+1. **核心结论先行**：一句话说清该买该卖
+2. **分持仓建议**：空仓者和持仓者给不同建议
+3. **精确狙击点**：必须给出具体价格，不说模糊的话
+4. **检查清单可视化**：用 ✅⚠️❌ 明确显示每项检查结果
+5. **风险优先级**：舆情中的风险点要醒目标出
 
-## Ràng buộc về tính khả thi và ổn định
+## 可操作性与稳定性约束
 
-- Không được chỉ vì biến động giá một phiên hoặc điểm số vượt ngưỡng mà chuyển đổi mạnh giữa "mua/bán".
-- Khuyến nghị thao tác phải đồng thời tham chiếu vị trí giá (hỗ trợ/kháng cự), khối lượng/nguồn cung, dòng tiền lớn và sự kiện rủi ro.
-- Khi giá nằm giữa hỗ trợ và kháng cự, dòng tiền chưa rõ ràng, ưu tiên xuất các khuyến nghị trung tính khả thi như "nắm giữ/đi ngang/quan sát/quan sát rũ bỏ"; `decision_type` vẫn giữ `hold`.
-- Chỉ khi gần xác nhận hỗ trợ hoặc bứt phá kháng cự hiệu quả, đồng thời dòng tiền/giá-khối lượng đồng thuận, mới được đưa ra khuyến nghị mua; gần kháng cự mà dòng tiền rút ra thì không được đuổi mua.
-- Chỉ khi thủng hỗ trợ then chốt, dòng tiền lớn rút ra liên tục hoặc rủi ro tăng rõ rệt, mới được đưa ra khuyến nghị bán/giảm tỷ trọng.
-- Bắt buộc xuất bảy trường của `dashboard.phase_decision`; trong phiên/nghỉ trưa/gần đóng cửa phải đưa ra hành động hiện tại, điều kiện theo dõi và thời điểm kiểm tra tiếp theo.
-- Nên xuất trường hiển thị tuỳ chọn `dashboard.signal_attribution` gồm sáu trường; giải thích cấu thành của lý do khuyến nghị, bao gồm mức đóng góp của chỉ báo kỹ thuật, tin tức/tâm lý, yếu tố cơ bản, bối cảnh thị trường, cùng tín hiệu tăng/giảm mạnh nhất.
-- Trước phiên, ngày không giao dịch hoặc giai đoạn không xác định thì không được bịa diễn biến trong phiên hôm nay; khi quote/daily_bars/technical ở trạng thái stale, fallback, missing, fetch_failed, partial hoặc estimated thì `confidence_level` không được là cao."""
+- 不得仅因为单日涨跌或评分跨线就在“买入/卖出”之间剧烈切换。
+- 操作建议必须同时参考价格位置（支撑/压力位）、量能/筹码、主力资金流向和风险事件。
+- 股价位于支撑与压力之间、资金流不明确时，优先输出“持有/震荡/观望/洗盘观察”等可执行的中性建议；`decision_type` 仍保持 `hold`。
+- 只有在接近支撑确认或有效突破压力，且资金流/量价配合时，才能给出买入；接近压力且资金流出时不得追买。
+- 只有在跌破关键支撑、主力资金持续流出或风险显著放大时，才能给出卖出/减仓。
+- 必须输出 `dashboard.phase_decision` 七字段；盘中/午休/临近收盘要给出当前动作、观察条件和下一次检查点。
+- 建议输出可选展示字段 `dashboard.signal_attribution` 六字段；解释推荐理由的构成，包括技术指标、新闻舆情、基本面、市场环境的贡献度，以及最强看多/看空信号。
+- 盘前、非交易日或未知阶段不得伪造今日盘中走势；quote/daily_bars/technical 存在 stale、fallback、missing、fetch_failed、partial 或 estimated 时，`confidence_level` 不得为高。"""
 
-    TEXT_SYSTEM_PROMPT = """Bạn là trợ lý phân tích cổ phiếu chuyên nghiệp.
+    TEXT_SYSTEM_PROMPT = """你是一位专业的股票分析助手。
 
-- Câu trả lời phải dựa trên dữ liệu và bối cảnh do người dùng cung cấp
-- Nếu thông tin không đủ, phải nêu rõ sự bất định
-- Không được bịa giá, báo cáo tài chính hay sự kiện tin tức
+- 回答必须基于用户提供的数据与上下文
+- 若信息不足，要明确指出不确定性
+- 不要编造价格、财报或新闻事实
 """
 
     def __init__(
@@ -2392,14 +2392,41 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
             ),
         )
 
+    def _vn_system_prompt_templates(self, lang: str) -> Tuple[str, str, str]:
+        """fork VN: chon (legacy_prompt, system_prompt, tieu_de_ky_nang) theo ngon ngu.
+
+        Chi `vi` doi sang ban dich trong src/analyzer_prompts_vi.py; moi ngon ngu
+        khac dung nguyen hang cua upstream. Nho vay analyzer.py khong con literal
+        tieng Viet nao cho 3 prompt do va merge upstream ve sau khong dinh conflict.
+        """
+        if lang != "vi":
+            return (
+                self.LEGACY_DEFAULT_SYSTEM_PROMPT,
+                self.SYSTEM_PROMPT,
+                "## 激活的交易技能",
+            )
+        from src.analyzer_prompts_vi import (
+            LEGACY_DEFAULT_SYSTEM_PROMPT_VI,
+            SKILLS_SECTION_HEADING_VI,
+            SYSTEM_PROMPT_VI,
+        )
+
+        return (
+            LEGACY_DEFAULT_SYSTEM_PROMPT_VI,
+            SYSTEM_PROMPT_VI,
+            SKILLS_SECTION_HEADING_VI,
+        )
+
     def _get_analysis_system_prompt(self, report_language: str, stock_code: str = "") -> str:
         """Build the analyzer system prompt with output-language guidance."""
         lang = normalize_report_language(report_language)
         market_role = get_market_role(stock_code, lang)
         market_guidelines = get_market_guidelines(stock_code, lang)
         skill_instructions, default_skill_policy, use_legacy_default_prompt = self._get_skill_prompt_sections()
+        # fork VN: hook — ban tieng Viet cua 3 prompt nam o src/analyzer_prompts_vi.py.
+        legacy_tpl, system_tpl, skills_heading = self._vn_system_prompt_templates(lang)
         if use_legacy_default_prompt:
-            base_prompt = self.LEGACY_DEFAULT_SYSTEM_PROMPT.replace(
+            base_prompt = legacy_tpl.replace(
                 "{market_placeholder}", market_role
             ).replace(
                 "{guidelines_placeholder}", market_guidelines
@@ -2407,12 +2434,12 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
         else:
             skills_section = ""
             if skill_instructions:
-                skills_section = f"## Kỹ năng giao dịch đã kích hoạt\n\n{skill_instructions}\n"
+                skills_section = f"{skills_heading}\n\n{skill_instructions}\n"
             default_skill_policy_section = ""
             if default_skill_policy:
                 default_skill_policy_section = f"{default_skill_policy}\n"
             base_prompt = (
-                self.SYSTEM_PROMPT.replace("{market_placeholder}", market_role)
+                system_tpl.replace("{market_placeholder}", market_role)
                 .replace("{guidelines_placeholder}", market_guidelines)
                 .replace("{default_skill_policy_section}", default_skill_policy_section)
                 .replace("{skills_section}", skills_section)
@@ -2459,11 +2486,11 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
 """
         return base_prompt + """
 
-## Ngôn ngữ đầu ra (ưu tiên cao nhất)
+## 输出语言（最高优先级）
 
-- Giữ nguyên tất cả khoá JSON.
-- `decision_type` phải giữ nguyên `buy|hold|sell`.
-- Tất cả giá trị văn bản hiển thị cho người dùng phải viết bằng tiếng Việt.
+- 所有 JSON 键名保持不变。
+- `decision_type` 必须保持为 `buy|hold|sell`。
+- 所有面向用户的人类可读文本值必须使用中文。
 """
 
     def _has_channel_config(self, config: Config) -> bool:
@@ -4075,20 +4102,33 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
         unknown_text = get_unknown_text(report_language)
         no_data_text = get_no_data_text(report_language)
         quote_section_title, close_price_label = _phase_aware_quote_labels(context)
+        # fork VN: ham tren cua upstream giu nguyen (tra ve tieng Trung);
+        # dich o BIEN qua bang trong src/analyzer_prompts_vi.py.
+        from src.analyzer_prompts_vi import (
+            label as _label,
+            price_unit as _price_unit,
+            quote_labels as _QL,
+        )
+
+        _L = lambda text: _label(text, report_language)  # noqa: E731
+        _U = _price_unit(report_language)
+        quote_section_title, close_price_label = _QL(
+            quote_section_title, close_price_label, report_language
+        )
         hide_regular_session_ohlc = _should_hide_regular_session_ohlc(context)
         realtime_overlay_quote = hide_regular_session_ohlc and _today_has_realtime_overlay(today)
-        pct_chg_label = "Biến động giá thời gian thực" if realtime_overlay_quote else "Biến động giá"
-        volume_label = "Khối lượng thời gian thực" if realtime_overlay_quote else "Khối lượng"
-        amount_label = "Giá trị giao dịch thời gian thực" if realtime_overlay_quote else "Giá trị giao dịch"
+        pct_chg_label = _L("实时涨跌幅" if realtime_overlay_quote else "涨跌幅")
+        volume_label = _L("实时成交量" if realtime_overlay_quote else "成交量")
+        amount_label = _L("实时成交额" if realtime_overlay_quote else "成交额")
         quote_rows = [
-            f"| {close_price_label} | {today.get('close', 'N/A')} |",
+            f"| {close_price_label} | {today.get('close', 'N/A')}{_U} |",
         ]
         if not hide_regular_session_ohlc:
             quote_rows.extend(
                 [
-                    f"| Giá mở cửa | {today.get('open', 'N/A')} |",
-                    f"| Giá cao nhất | {today.get('high', 'N/A')} |",
-                    f"| Giá thấp nhất | {today.get('low', 'N/A')} |",
+                    f"| {_L('开盘价')} | {today.get('open', 'N/A')}{_U} |",
+                    f"| {_L('最高价')} | {today.get('high', 'N/A')}{_U} |",
+                    f"| {_L('最低价')} | {today.get('low', 'N/A')}{_U} |",
                 ]
             )
         quote_rows.extend(
@@ -4101,14 +4141,14 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
         quote_rows_text = "\n".join(quote_rows)
         
         # ========== 构建决策仪表盘格式的输入 ==========
-        prompt = f"""# Yêu cầu phân tích bảng điều khiển quyết định
+        prompt = f"""# {_L("决策仪表盘分析请求")}
 
-## 📊 Thông tin cơ bản của cổ phiếu
-| Mục | Dữ liệu |
+## 📊 {_L("股票基础信息")}
+| {_L("项目")} | {_L("数据")} |
 |------|------|
-| Mã cổ phiếu | **{code}** |
-| Tên cổ phiếu | **{stock_name}** |
-| Ngày phân tích | {context.get('date', unknown_text)} |
+| {_L("股票代码")} | **{code}** |
+| {_L("股票名称")} | **{stock_name}** |
+| {_L("分析日期")} | {context.get('date', unknown_text)} |
 
 ---
 """
@@ -4135,34 +4175,34 @@ Hãy xuất đúng theo định dạng JSON sau đây, đây là một【Bảng 
 ## 📈 Dữ liệu kỹ thuật
 
 ### {quote_section_title}
-| Chỉ báo | Giá trị |
+| {_L("指标")} | {_L("数值")} |
 |------|------|
 {quote_rows_text}
 
-### Hệ thống đường trung bình (chỉ báo nhận định then chốt)
-| Đường MA | Giá trị | Thuyết minh |
+### {_L("均线系统（关键判断指标）")}
+| {_L("均线")} | {_L("数值")} | {_L("说明")} |
 |------|------|------|
-| MA5 | {today.get('ma5', 'N/A')} | Đường xu hướng ngắn hạn |
-| MA10 | {today.get('ma10', 'N/A')} | Đường xu hướng ngắn-trung hạn |
-| MA20 | {today.get('ma20', 'N/A')} | Đường xu hướng trung hạn |
-| Hình thái đường trung bình | {context.get('ma_status', unknown_text)} | Tăng/Giảm/Quấn nhau |
+| MA5 | {today.get('ma5', 'N/A')} | {_L('短期趋势线')} |
+| MA10 | {today.get('ma10', 'N/A')} | {_L('中短期趋势线')} |
+| MA20 | {today.get('ma20', 'N/A')} | {_L('中期趋势线')} |
+| {_L('均线形态')} | {context.get('ma_status', unknown_text)} | {_L('多头/空头/缠绕')} |
 """
         
         # 添加实时行情数据（量比、换手率等）
         if 'realtime' in context:
             rt = context['realtime']
             prompt += f"""
-### Dữ liệu giao dịch thời gian thực bổ sung
-| Chỉ báo | Giá trị | Diễn giải |
+### {_L("实时行情增强数据")}
+| {_L("指标")} | {_L("数值")} | {_L("解读")} |
 |------|------|------|
-| Giá hiện tại | {rt.get('price', 'N/A')} | |
-| **Tỷ lệ khối lượng** | **{rt.get('volume_ratio', 'N/A')}** | {rt.get('volume_ratio_desc', '')} |
-| **Tỷ lệ thanh khoản** | **{rt.get('turnover_rate', 'N/A')}%** | |
-| P/E (động) | {rt.get('pe_ratio', 'N/A')} | |
-| P/B | {rt.get('pb_ratio', 'N/A')} | |
-| Vốn hóa toàn phần | {self._format_amount(rt.get('total_mv'))} | |
-| Vốn hóa lưu hành | {self._format_amount(rt.get('circ_mv'))} | |
-| Biến động 60 ngày | {rt.get('change_60d', 'N/A')}% | Hiệu suất trung hạn |
+| {_L('当前价格')} | {rt.get('price', 'N/A')}{_U} | |
+| **{_L('量比')}** | **{rt.get('volume_ratio', 'N/A')}** | {rt.get('volume_ratio_desc', '')} |
+| **{_L('换手率')}** | **{rt.get('turnover_rate', 'N/A')}%** | |
+| {_L('市盈率(动态)')} | {rt.get('pe_ratio', 'N/A')} | |
+| {_L('市净率')} | {rt.get('pb_ratio', 'N/A')} | |
+| {_L('总市值')} | {self._format_amount(rt.get('total_mv'))} | |
+| {_L('流通市值')} | {self._format_amount(rt.get('circ_mv'))} | |
+| {_L('60日涨跌幅')} | {rt.get('change_60d', 'N/A')}% | {_L('中期表现')} |
 """
 
         # 添加财报与分红（价值投资口径）

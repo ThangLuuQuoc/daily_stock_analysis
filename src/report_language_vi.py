@@ -324,6 +324,31 @@ VI_SENTIMENT_BANDS = (
 )
 
 
+
+# ---------------------------------------------------------------------------
+# Các dict PHẲNG dạng ``{lang: text}`` trong report_language.py.
+#
+# Khác với VI_TRANSLATIONS (dict lồng nhau ``{canonical: {lang: text}}``),
+# nhóm này tra thẳng bằng ``d[language]`` nên thiếu khoá "vi" là KeyError
+# ngay lúc chạy, không phải cảnh báo. Đã từng xảy ra thật:
+# ``AI 分析 HPG(HPG) 失败: 'vi'`` (logs/api_server_20260625.log) — mọi phân tích
+# rơi vào nhánh except và trả về kết quả trung tính giả (score 50).
+#
+# tests/test_report_language_vi_coverage.py có test quét mọi dict phẳng
+# ``*_BY_LANGUAGE`` để chặn tái diễn khi upstream thêm dict mới.
+# ---------------------------------------------------------------------------
+VI_FLAT_BY_LANGUAGE = {
+    "_UNKNOWN_BY_LANGUAGE": "Không rõ",
+    "_NO_DATA_BY_LANGUAGE": "Thiếu dữ liệu",
+    "_PLACEHOLDER_BY_LANGUAGE": "Chờ bổ sung",
+    "_GENERIC_STOCK_NAME_BY_LANGUAGE": "Cổ phiếu chưa xác định",
+    "_CHIP_UNAVAILABLE_BY_LANGUAGE": (
+        "Phân bố chip chưa bật hoặc nguồn dữ liệu tạm thời không khả dụng, "
+        "không đưa vào nhận định chip."
+    ),
+}
+
+
 def register() -> None:
     """Tiêm dữ liệu tiếng Việt vào ``src.report_language``.
 
@@ -351,6 +376,12 @@ def register() -> None:
     rl._REPORT_LABELS["vi"] = dict(VI_REPORT_LABELS)
     rl._SENTIMENT_LABEL_BANDS["vi"] = VI_SENTIMENT_BANDS
 
+    # Dict phẳng {lang: text} — thiếu khoá là KeyError lúc chạy.
+    for dict_name, text in VI_FLAT_BY_LANGUAGE.items():
+        target = getattr(rl, dict_name, None)
+        if isinstance(target, dict):
+            target["vi"] = text
+
 
 __all__ = [
     "VI_TRANSLATIONS",
@@ -358,5 +389,6 @@ __all__ = [
     "VI_LANGUAGE_ALIASES",
     "VI_REPORT_LABELS",
     "VI_SENTIMENT_BANDS",
+    "VI_FLAT_BY_LANGUAGE",
     "register",
 ]
