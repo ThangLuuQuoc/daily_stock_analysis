@@ -9,6 +9,7 @@
 - Windows 便携/安装模式下，用户配置文件 `.env` 和数据库放在 exe 同级目录；macOS 打包版使用 Electron 用户数据目录保存运行时配置
 - 桌面端会自动从本机 `8000-8100` 选择可用端口，并把实际选择的端口同步给内置后端；桌面端不依赖 `.env` 里的 `WEBUI_PORT` 来决定窗口连接地址，避免用户改端口后 Electron 仍等待旧端口导致启动超时
 - Desktop backend 默认随 `requirements.txt` 安装并冻结 `futu-api==10.8.6808`；Windows/macOS 构建脚本会在源码环境和 PyInstaller 产物中分别执行 `import futu`，防止发布包只安装但未携带 SDK。
+- 报告“分享”按钮使用 Electron 自带的隐藏 Chromium 窗口渲染本地后端输出的受限 HTML，并保存为 PNG；桌面安装包无需额外携带 `wkhtmltoimage`、`markdown-to-file` 或 Playwright 浏览器。
 
 ## 本地开发
 
@@ -88,6 +89,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Daily Stock Analysis.app"
+open "/Applications/Daily Stock Analysis.app"
 ```
 
 如果应用不在 `/Applications`，请将命令中的路径替换为实际 `.app` 路径。不要对整个“应用程序”目录执行 `xattr`，也不要对来源不明的应用执行此命令。不同 macOS 版本可能仍拒绝 unsigned 应用，清除 quarantine 不保证能够放行。长期彻底消除该提示需要在发布流程中接入 Apple Developer 签名与 notarization（公证），不属于上述临时放行步骤。
