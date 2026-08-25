@@ -6,6 +6,7 @@
 
 | 渠道 | 类型 | Minimal key | Advanced key | 说明 |
 | --- | --- | --- | --- | --- |
+| 钉钉 Webhook | 静态配置 | `DINGTALK_WEBHOOK_URL` | `DINGTALK_SECRET` | 支持加签安全方式。当前仅限环境变量配置，暂未接入 Web UI 设置页。 |
 | 企业微信 | 静态配置 | `WECHAT_WEBHOOK_URL` | `WECHAT_MSG_TYPE` | 配置后参与批量通知发送 |
 | 飞书 Webhook / App Bot | 静态配置 | `FEISHU_WEBHOOK_URL` 或 `FEISHU_APP_ID` + `FEISHU_APP_SECRET` + `FEISHU_CHAT_ID` | `FEISHU_WEBHOOK_SECRET`, `FEISHU_WEBHOOK_KEYWORD`, `FEISHU_RECEIVE_ID_TYPE`, `FEISHU_DOMAIN` | Webhook URL 优先；未配置 Webhook 时，App Bot 三元组可主动向指定群/用户推送。`FEISHU_STREAM_ENABLED` 仅代表事件订阅 / Stream Bot，不参与主动通知配置完成判断 |
 | Telegram | 静态配置 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `TELEGRAM_MESSAGE_THREAD_ID` | token 与 chat id 必须同时存在 |
@@ -23,6 +24,8 @@
 | 钉钉会话 | 运行时上下文 | - | - | 从来源消息上下文提取，无法仅由 `.env` 静态判断 |
 | 飞书会话 | 运行时上下文 | - | - | 从来源消息上下文提取，交互式命令结果仅回到来源会话 |
 | Telegram 会话 | 运行时上下文 | - | - | 从来源消息上下文提取，交互式命令结果仅回到来源会话 |
+
+Discord 长报告发送复用现有分片链路：单条 `content` 运行时不会超过 Discord 2000 字符限制，Webhook 与 Bot API 都会逐片发送并在片与片之间短暂等待；遇到 429 时按 Discord 返回的 `retry_after` 或 `Retry-After` 做有限重试，避免中途限流后只收到前半段报告。
 
 ## Minimal / Advanced 分层
 

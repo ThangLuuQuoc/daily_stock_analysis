@@ -39,7 +39,7 @@ export interface MarketReviewAccepted {
 
 // ============ Report Types ============
 
-export type ReportLanguage = 'zh' | 'en' | 'vi';
+export type ReportLanguage = 'zh' | 'en' | 'ko' | 'vi';
 
 export type MarketPhaseValue =
   | 'premarket'
@@ -97,7 +97,12 @@ export type SentimentLabel =
   | 'Tiêu cực'
   | 'Trung tính'
   | 'Tích cực'
-  | 'Rất tích cực';
+  | 'Rất tích cực'
+  | '매우 비관'
+  | '비관'
+  | '중립'
+  | '낙관'
+  | '매우 낙관';
 
 export type DecisionAction = 'buy' | 'add' | 'hold' | 'reduce' | 'sell' | 'watch' | 'avoid' | 'alert';
 
@@ -517,6 +522,13 @@ export const getSentimentLabel = (score: number, language: ReportLanguage = 'zh'
     if (score <= 60) return 'Trung tính';
     if (score <= 80) return 'Tích cực';
     return 'Rất tích cực';
+  }
+  if (language === 'ko') {
+    if (score <= 20) return '매우 비관';
+    if (score <= 40) return '비관';
+    if (score <= 60) return '중립';
+    if (score <= 80) return '낙관';
+    return '매우 낙관';
   }
   if (score <= 20) return '极度悲观';
   if (score <= 40) return '悲观';

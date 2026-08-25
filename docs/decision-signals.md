@@ -33,6 +33,22 @@
 
 Web 展示必须把这些 wire value 映射为当前 UI 语言的用户可读标签；API 响应继续保留原始枚举值。
 
+## Canonical 评分与 action 口径
+
+个股分析、技术评分 fallback、报告展示 fallback 与 `DecisionSignal` 提取共用 `decision-scale-v1` 口径。`decision_type` 只保留 `buy|hold|sell` 兼容统计；更细的可执行语义以八态 `action` 为准。
+
+- 用户侧可见面存在两类字段：`operation_advice` 保留文本口径（如“持有观察”），`action` 作为统一 8 态决策口径（如 `hold/watch/reduce`）用于风控、回测与列表展示。新生成或最终保存前重算的个股报告应优先让两者保持一致；历史记录或兼容载荷仍出现语义冲突时，默认以 `action` 为列表、回测、DecisionSignal 等结构化展示的优先字段，`operation_advice` 仅作说明文本保留。
+
+| score | signal key | `action` | legacy `decision_type` | 语义 |
+| --- | --- | --- | --- | --- |
+| 80-100 | `strong_buy` | `buy` | `buy` | 强烈买入，高胜率机会，可执行买入/加仓计划 |
+| 60-79 | `buy` | `buy` | `buy` | 偏积极机会，允许少量待确认项 |
+| 40-59 | `watch` | `watch` | `hold` | 信号分歧或确认不足，等待触发条件 |
+| 20-39 | `reduce` | `reduce` | `sell` | 风险明显抬升，优先降低暴露 |
+| 0-19 | `sell` | `sell` | `sell` | 趋势或风险显著恶化，优先退出 |
+
+如果 `score >= 60` 但最终 `action` 是 `hold/watch`，或 `score < 40` 但最终 `action` 仍是 `hold/watch`，必须有明确 guardrail 解释，例如 `dashboard.decision_stability.reason`、`dashboard.decision_score_calibration.guardrail_reason` 或 `metadata.guardrail_reason`。风控降级会保留 `raw_score`、`adjusted_score`、`raw_action`、`final_action` 和原因；没有明确原因的中性动作在 DecisionSignal 提取时会按 canonical score 对齐为 `buy/reduce/sell`。
+
 ## 生命周期、去重与状态
 
 `src/services/decision_signal_service.py` 是信号生命周期的主入口：
@@ -56,8 +72,35 @@ Web 展示必须把这些 wire value 映射为当前 UI 语言的用户可读标
 - `POST /api/v1/decision-signals/outcomes/run`：显式触发后验评估。
 - `GET /api/v1/decision-signals/outcomes`、`GET /api/v1/decision-signals/outcomes/stats`、`GET /api/v1/decision-signals/{signal_id}/outcomes`：查询后验结果与统计。
 - `GET/PUT /api/v1/decision-signals/{signal_id}/feedback`：查询或写入 useful / not useful 反馈。
+- `POST /api/v1/decision-signals/reassess`：基于来源历史报告预览不同决策风格下的信号，不写库。
 
 这些接口继承现有 `/api/v1/*` 管理员鉴权；`ADMIN_AUTH_ENABLED=true` 时需要有效管理员会话 Cookie。
+
+## Reassess preview
+
+`reassess` 第一版只做 preview，不创建或更新 `DecisionSignal`。
+
+请求只支持：
+
+```json
+{
+  "source_report_id": 123,
+  "decision_profile": "aggressive",
+  "persist": false
+}
+```
+
+契约边界：
+
+- `source_report_id` 是唯一事实来源，重评估只读取对应持久化历史报告快照。
+- 不支持 `signal_id`，也不接受客户端提交 `action`、`score`、`confidence`、价格、metadata 或 guardrail 结果；额外字段会被请求校验拒绝。
+- `persist=true` 当前固定返回 HTTP 400，错误码为 `unsupported_operation`。保存重评估结果依赖后续将 `decision_profile` 字段化。
+- 重评估不会静默抓取实时行情，也不会用当前市场数据补齐历史快照。
+- 历史报告不存在、非个股报告或快照缺少结构化决策输入时，分别返回明确错误。
+- data quality 会归一为 `high`、`medium`、`low`、`poor`、`unknown`，guardrail 只使用归一化后的等级。
+- `guardrail_result` 是机器审计数据，记录 raw/final action、是否通过、violations 和 adjustments；`warnings` 是用户可读摘要，测试和客户端逻辑应优先依赖稳定 `code`。
+- blocked preview 仍是 HTTP 200，UI 必须突出 `blocked_reason`，不能把它当作普通可执行信号。
+- aggressive 不是模型采样温度语义，也不会自动生成三套 profile 信号。
 
 ## Web 展示
 
@@ -71,6 +114,7 @@ Web 入口位于 `/decision-signals`：
 - P1 不提供 profile filter；`decision_profile` 仍只存在于 metadata 中，不能可靠 server-side 过滤。历史缺失或非法 profile 的信号在 Web 中显示为 `unknown`，不会误标为 `balanced`。
 - market filter 在 API / 服务层与 Web 前端均已支持 `cn/hk/us/jp/kr/tw`；`jp/kr/tw` 的前端本地化标签均已补齐，`tw` 信号可经 API 正常写入、按 `market=tw` 查询，并可在 Web DecisionSignal 页面通过市场筛选项选择台股（tw）；告警（大盘红绿灯）市场支持 `cn/hk/us/jp/kr`。
 - 详情抽屉展示动作、状态、评分、置信度、周期、计划质量、市场阶段、价格计划、风险、观察条件、证据、数据质量和 metadata。
+- 详情抽屉或已有来源报告 ID 的页面上下文可以发起 reassess preview；没有可用来源报告 ID 时入口禁用。Preview 不加入列表、latest 或时间线，也不提供保存按钮。
 - Web 只能把信号标记为 `closed`、`invalidated` 或 `archived`，不提供 terminal 状态恢复为 active。
 - 历史报告详情不再内嵌展示报告绑定的 `source_type=analysis` 信号，也不会因打开报告详情触发 `source_report_id` 信号查询；需要查看报告来源信号时统一进入 `/decision-signals` 页面按来源报告 ID 精确筛选，或打开 `/decision-signals?sourceReportId=<recordId>` deep link。该筛选和 deep link 都会使用 `source_type=analysis + source_report_id` 的精确查询，以保留旧报告的 best-effort 懒回填入口。
 - 持仓页异步查询每个唯一持仓的 latest active 信号，单只查询失败只显示降级提示，不阻断组合快照或其他持仓信号。

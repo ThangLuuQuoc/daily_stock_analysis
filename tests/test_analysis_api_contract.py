@@ -1279,6 +1279,31 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         self.assertEqual(report.summary.action, "avoid")
         self.assertEqual(report.summary.action_label, "回避")
 
+    def test_build_analysis_report_aligns_score_and_legacy_advice(self) -> None:
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        report = _build_analysis_report(
+            report_data={
+                "meta": {"report_type": "detailed", "report_language": "zh"},
+                "summary": {
+                    "analysis_summary": "等待确认",
+                    "operation_advice": "持有",
+                    "sentiment_score": 72,
+                },
+                "strategy": {},
+                "details": {},
+            },
+            query_id="q2",
+            stock_code="600519",
+            stock_name="贵州茅台",
+            context_snapshot=None,
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertEqual(report.summary.action, "buy")
+        self.assertEqual(report.summary.action_label, "买入")
+
     def test_build_analysis_report_reads_decision_action_from_raw_result(self) -> None:
         if _build_analysis_report is None:
             self.skipTest("analysis endpoint helpers unavailable in this environment")

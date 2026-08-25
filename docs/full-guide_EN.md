@@ -115,7 +115,7 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 |------------|------|:----:|
 | `SINGLE_STOCK_NOTIFY` | Single stock push mode: set to `true` to push immediately after each stock analysis | Optional |
 | `REPORT_TYPE` | Report type: `simple` (concise), `full` (complete), `brief` (3-5 sentences), Docker recommended: `full` | Optional |
-| `REPORT_LANGUAGE` | Report output language: `zh` (default Chinese) / `en` (English); also updates prompt instructions, templates, notification fallbacks, and fixed copy in the Web report view. The bundled `00-daily-analysis.yml` already maps this variable, so setting it in Actions Secrets/Variables works out of the box | Optional |
+| `REPORT_LANGUAGE` | Report output language: `zh` (default Chinese) / `en` (English) / `ko` (Korean); also updates prompt instructions, templates, notification fallbacks, and fixed copy in the Web report view. `ko` reuses the English structural scaffolding and constrains the model to Korean output via an output-language directive; notifications render localized labels by report language. The bundled `00-daily-analysis.yml` already maps this variable, so setting it in Actions Secrets/Variables works out of the box | Optional |
 | `REPORT_SHOW_LLM_MODEL` | Whether notification report footers show the LLM model used for analysis. Defaults to `true`; set to `false` to hide runtime model metadata. This switch only affects presentation and does not change provider/model/Base URL, LiteLLM routing, or runtime model save/migration/cleanup behavior. | Optional |
 | `REPORT_TEMPLATES_DIR` | Jinja2 template directory (relative to project root, default `templates`) | Optional |
 | `REPORT_RENDERER_ENABLED` | Enable Jinja2 template rendering (default `false`, zero regression) | Optional |
@@ -196,13 +196,14 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 
 | Variable | Description | Default | Required |
 |--------|------|--------|:----:|
-| `GENERATION_BACKEND` | Generation backend for regular analysis. Supports `litellm` or explicit opt-in `codex_cli` (experimental/limited) | `litellm` | No |
+| `GENERATION_BACKEND` | Generation backend for regular analysis. Supports `litellm` or explicit opt-in `codex_cli` / `claude_code_cli` / `opencode_cli` (experimental/limited) | `litellm` | No |
+| `OPENCODE_CLI_MODEL` | Optional model override passed to OpenCode `--model` when `GENERATION_BACKEND=opencode_cli`; leave empty to use the local OpenCode default model. Authentication and model availability are handled by the local OpenCode setup | Empty | No |
 | `GENERATION_FALLBACK_BACKEND` | Backend-level fallback. Unset defaults to `litellm`; an empty value disables fallback; self fallback resolves to no-op | `litellm` | No |
 | `GENERATION_BACKEND_TIMEOUT_SECONDS` | Per-call generation backend timeout in seconds, mainly for local CLI backends; range `1-3600` | `300` | No |
 | `GENERATION_BACKEND_MAX_OUTPUT_BYTES` | Total captured diagnostic stdout/stderr plus final-response size limit for one local CLI backend call; final responses duplicated to stdout by `--output-last-message` are not counted twice; range `1-33554432` | `1048576` | No |
 | `GENERATION_BACKEND_MAX_CONCURRENCY` | Global generation backend concurrency cap; range `1-16`, does not change LiteLLM Router or `MAX_WORKERS` behavior | `1` | No |
 | `LOCAL_CLI_BACKEND_MAX_CONCURRENCY` | Local CLI backend concurrency cap; range `1-4`, effective concurrency is the lower of this value and `GENERATION_BACKEND_MAX_CONCURRENCY` | `1` | No |
-| `AGENT_GENERATION_BACKEND` | Agent Chat generation backend. Web settings only expose `auto|litellm`; hand-written `codex_cli` returns an unsupported tool-calling diagnostic | `auto` | No |
+| `AGENT_GENERATION_BACKEND` | Agent Chat generation backend. Web settings only expose `auto|litellm`; hand-written local CLI backends return an unsupported tool-calling diagnostic | `auto` | No |
 | `LITELLM_MODEL` | Primary model, format `provider/model` (e.g. `gemini/gemini-3.1-pro-preview`), recommended | - | No |
 | `AGENT_LITELLM_MODEL` | Optional Agent-only primary model; when empty it inherits the primary model, and bare names are normalized to `openai/<model>` | - | No |
 | `LITELLM_FALLBACK_MODELS` | Fallback models, comma-separated | - | No |
@@ -226,6 +227,8 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 
 > GitHub Actions note: the bundled `00-daily-analysis.yml` explicitly uses `litellm` when `GENERATION_FALLBACK_BACKEND` is not configured, so an unset Secret/Variable is not exported as an empty value that disables backend fallback. To disable backend fallback in Actions, set the fallback to the primary backend and let the resolver treat it as self no-op.
 
+> Generation backend status note: the Web settings quick check only reads config, drafts, and executable visibility; it does not send a real model request. JSON smoke test is a separate explicit action that sends one real request with a server-owned fixed JSON prompt/schema. `health_status` and `last_error_code/message` describe only the current status computation or smoke result, not persisted historical health.
+
 > *Note: Configure at least one of `ANSPIRE_API_KEYS`, `AIHUBMIX_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_API_BASE`, or `LLM_CHANNELS` / `LITELLM_CONFIG`. `ANSPIRE_API_KEYS` and `AIHUBMIX_KEY` are auto-adapted without an `OPENAI_BASE_URL`.
 
 ### Notification Channel Configuration
@@ -245,7 +248,7 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 | `DISCORD_BOT_TOKEN` | Discord Bot Token (choose one with Webhook) | Optional |
 | `DISCORD_MAIN_CHANNEL_ID` | Discord Channel ID (required when using Bot) | Optional |
 | `DISCORD_INTERACTIONS_PUBLIC_KEY` | Discord Public Key (required only for inbound Interaction/Webhook signature verification) | Optional |
-| `DISCORD_MAX_WORDS` | Discord Word Limit (default 2000 for un-upgraded servers) | Optional |
+| `DISCORD_MAX_WORDS` | Discord per-message content limit (default 2000; runtime never exceeds Discord's 2000-character content limit, long reports are chunked, and 429 rate limits are retried a limited number of times) | Optional |
 | `SLACK_BOT_TOKEN` | Slack Bot Token (recommended, supports image upload; takes priority over Webhook when both set) | Optional |
 | `SLACK_CHANNEL_ID` | Slack Channel ID (required when using Bot) | Optional |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL (text only, no image support) | Optional |
@@ -341,6 +344,7 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 > - **ETFs**: Returns available items, marks missing capabilities as `not_supported`, and does not affect the original flow overall.
 > - **US/HK stocks**: Returns `valuation/growth/earnings/belong_boards` (sourced from `info.sector`/`info.industry`) via the yfinance adapter; `institution/capital_flow/dragon_tiger/boards` stay `not_supported` because no offshore data feed exists today. Falls back to a full `not_supported` block if yfinance is unavailable or returns empty payloads. Still fail-open.
 > - **Japanese/Korean stocks**: Current MVP uses Yfinance daily/basic quote coverage only; `institution`, `capital_flow`, `dragon_tiger`, and `boards` are not fully supported and degrade to `not_supported` (see [market boundaries](market-support.md)).
+> - **Taiwan stocks**: On top of the US/HK offshore base path, the `institution` block additionally surfaces raw 三大法人 (institutional) net buy/sell figures (TWSE T86 / TPEx, default-on, fail-open — stays `not_supported` when data is unavailable); `capital_flow`, `dragon_tiger`, and `boards` remain `not_supported`.
 > - Any exception uses fail-open logic, only logs errors without affecting the main technical/news/chip pipeline.
 > - **Field contracts**:
 >   - `fundamental_context.belong_boards` = related board list for the stock; A-shares are sourced from AkShare board membership, US/HK from yfinance `info.sector`/`info.industry`, `[]` when unavailable;
@@ -662,7 +666,7 @@ The phase labels describe regular-session state:
 | `premarket` | Before the regular session opens; does not mean extended-hours quotes were fetched |
 | `intraday` | Inside the regular session and outside lunch break or the near-close window |
 | `lunch_break` | Lunch break window supplied by the market calendar; markets without lunch breaks skip this phase |
-| `closing_auction` | Near-close heuristic window: 3 minutes for CN, 10 minutes for HK, and 5 minutes for US; this is not a full exchange auction model |
+| `closing_auction` | Near-close heuristic window: 3 minutes for CN, 10 minutes for HK, 5 minutes for US, and 5 minutes for TW (13:25–13:30); this is not a full exchange auction model |
 | `postmarket` | After the regular session closes; does not mean post-market quotes were fetched |
 | `non_trading` | The current market-local date is not a trading session |
 | `unknown` | Unknown market, calendar unavailable, or calendar error, so the phase cannot be inferred reliably |
@@ -977,6 +981,8 @@ while Gotify uses `/message` as a fixed server API.
 ### Discord
 
 Discord supports two push methods:
+
+Long reports are automatically split under Discord's 2000-character per-message `content` limit. If a chunk receives a 429 rate limit response, the sender follows Discord's `retry_after` or `Retry-After` value for a limited retry and continues attempting later chunks. `DISCORD_MAX_WORDS` can lower the chunk size, but runtime delivery will not exceed 2000.
 
 **Method 1: Webhook (Recommended, Simple)**
 
@@ -1333,7 +1339,7 @@ FastAPI provides RESTful API service for configuration management and triggering
 
 For this feature, the product behavior is:
 
-- UI language is independent from report language: `dsa.uiLanguage` (browser persistence) controls shell/login/settings text, while `REPORT_LANGUAGE` controls report text and report-page fixed copy (`zh`/`en`).
+- UI language is independent from report language: `dsa.uiLanguage` (browser persistence) controls shell/login/settings text, while `REPORT_LANGUAGE` controls report text and report-page fixed copy (`zh`/`en`/`ko`).
 - `dsa.uiLanguage` follows local persistence -> browser language -> default `zh`.
 - This change only adds request-scope report language override parameters; it does not modify `provider`, `model`, `base_url`, or migration/cleanup behavior.
 - PR-level verification output, screenshots, and command logs are maintained in PR description, not in this usage guide.
@@ -1374,10 +1380,10 @@ For this feature, the product behavior is:
 > Note: `POST /api/v1/analysis/analyze` supports only one stock when `async_mode=false`; batch `stock_codes` requires `async_mode=true`. The async `202` response returns a single `task_id` for one stock, or an `accepted` / `duplicates` summary for batch requests.
 > Note: `POST /api/v1/analysis/analyze` accepts `skills` as an array of strategy IDs; if omitted, server defaults are used. The legacy field `strategies` is still accepted for backward compatibility.
 > Note: `POST /api/v1/analysis/analyze` accepts `analysis_phase=auto|premarket|intraday|postmarket`, defaulting to `auto`. Non-`auto` only overrides the phase and derived phase flags for this run; it does not rewrite real trading-calendar timestamps. Accepted responses, in-memory task status, task lists, and SSE echo the requested phase, while the final report phase remains `report.meta.market_phase_summary.phase`.
-> Note: `POST /api/v1/analysis/analyze` accepts `report_language=zh|en` (legacy-compatible alias `reportLanguage`). When omitted, it falls back to global `REPORT_LANGUAGE`. This parameter is request-scoped only and influences report output language for this run, including `report.meta.report_language` in responses.
+> Note: `POST /api/v1/analysis/analyze` accepts `report_language=zh|en|ko` (legacy-compatible alias `reportLanguage`). When omitted, it falls back to global `REPORT_LANGUAGE`. This parameter is request-scoped only and influences report output language for this run, including `report.meta.report_language` in responses.
 > Note: The Web Home page exposes an explicit strategy selector. When users do not pick one, `skills` is not sent and legacy behavior is preserved; when selected, it is passed through to this endpoint and persisted in task status/history snapshots.
 > Note: `POST /api/v1/analysis/market-review` follows the same runtime configuration path as CLI/Bot market review (`GeminiAnalyzer(config=...)`, search setup, and prompt/rendering pipeline). The provider compatibility path prioritizes `litellm_model` and `llm_model_list`, then falls back to existing legacy keys (`GEMINI_*`, `OPENAI_*`, `ANTHROPIC_*`, `DEEPSEEK_*`) when those are not set; provider names, Base URL, and LiteLLM routing semantics are otherwise unchanged.
-> Note: `POST /api/v1/analysis/market-review` also accepts `report_language=zh|en` / `reportLanguage` to set report language for that request. If omitted, it falls back to global `REPORT_LANGUAGE`; Bot/CLI/manual `/market-review` calls keep using global config and do not carry request-level override.
+> Note: `POST /api/v1/analysis/market-review` also accepts `report_language=zh|en|ko` / `reportLanguage` to set report language for that request. If omitted, it falls back to global `REPORT_LANGUAGE`; Bot/CLI/manual `/market-review` calls keep using global config and do not carry request-level override.
 > Note: `POST /api/v1/analysis/market-review` is the explicit Web/desktop trigger and submits a market-review task directly. It does not short-circuit because `TRADING_DAY_CHECK_ENABLED=true` or the configured markets are closed that day; scheduled jobs, GitHub Actions manual runs, and CLI defaults still follow the trading-day gate unless `--force-run` or workflow `force_run` is used.
 > Audit note: priority and fallback are defined by `Config._load_from_env()` in `src/config.py` (`LITELLM_CONFIG` > `LLM_CHANNELS` > legacy). Regression coverage is in `tests/test_llm_channel_config.py` (configuration source parsing) and `tests/test_market_review_runtime.py` (shared runtime assembly). The endpoint lock is process/host-level only; multi-instance deployments still need external distributed idempotency controls.
 > Note: Once `/api/v1/analysis/market-review` completes, the report is persisted with `report_type=market_review`; open `/api/v1/history` and `/api/v1/history/{record_id}` (or Markdown history endpoints) to view it directly without re-running analysis.

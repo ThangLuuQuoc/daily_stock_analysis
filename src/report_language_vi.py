@@ -137,6 +137,13 @@ VI_LANGUAGE_ALIASES: Dict[str, str] = {
 #    và dễ thêm ngôn ngữ thứ tư hơn.
 # ---------------------------------------------------------------------------
 VI_REPORT_LABELS: Dict[str, str] = {
+    # --- v3.25.0: dong tien 3 nhom to chuc (dac thu thi truong Dai Loan) ---
+    "institutional_flow_heading": "Động thái ba nhóm tổ chức",
+    "institutional_flow_note": "Số dương = mua ròng, số âm = bán ròng; đơn vị: cổ phiếu.",
+    "inst_total_label": "Tổng ba nhóm tổ chức",
+    "inst_foreign_label": "Khối ngoại",
+    "inst_trust_label": "Quỹ đầu tư nội",
+    "inst_dealer_label": "Tự doanh",
     # --- v3.24.0: signal attribution + industry/concept boards ---
     "signal_attribution_heading": "Phân tích quy kết tín hiệu",
     "attribution_weights_label": "Trọng số quy kết",

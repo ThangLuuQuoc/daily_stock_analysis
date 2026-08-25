@@ -167,6 +167,24 @@ const getMessageSkillNames = (msg: Message): string[] => {
 
 const getMessageSkillLabel = (msg: Message, separator = '、'): string => getMessageSkillNames(msg).join(separator);
 
+const isStageDoneSuccessful = (status?: string): boolean => {
+  if (!status) return true;
+  const normalized = status.trim().toLowerCase();
+  return ['completed', 'success', 'succeeded', 'done'].includes(normalized);
+};
+
+const getStageDoneLabel = (step: ProgressStep): string => {
+  const stage = step.stage || 'stage';
+  if (step.message) return step.message;
+  if (isStageDoneSuccessful(step.status)) return `${stage} completed`;
+  return `${stage} ${step.status || 'finished'}`;
+};
+
+const getPipelineBudgetSkippedLabel = (step: ProgressStep): string => {
+  if (step.message) return step.message;
+  return `${step.stage || 'pipeline'} skipped: insufficient budget`;
+};
+
 const isCompareStockMessage = (
   message: string,
   stockCodes: string[],
@@ -790,6 +808,14 @@ const ChatPage: React.FC = () => {
       return `${last.display_name || last.tool}...`;
     if (last.type === 'tool_done')
       return `${last.display_name || last.tool} ${CHAT_TEXT.done[language]}`;
+    if (last.type === 'stage_start')
+      return last.message || `Starting ${last.stage || 'stage'}...`;
+    if (last.type === 'stage_done')
+      return getStageDoneLabel(last);
+    if (last.type === 'pipeline_timeout')
+      return last.message || `${last.stage || 'pipeline'} timed out`;
+    if (last.type === 'pipeline_budget_skipped')
+      return getPipelineBudgetSkippedLabel(last);
     if (last.type === 'generating')
       return last.message || CHAT_TEXT.generatingFinal[language];
     return CHAT_TEXT.processing[language];
@@ -850,10 +876,29 @@ const ChatPage: React.FC = () => {
           text = `${step.display_name || step.tool} (${step.duration}s)`;
           statusClass = step.success ? 'chat-progress-item-success' : 'chat-progress-item-danger';
           iconClass = step.success ? 'chat-progress-dot-success' : 'chat-progress-dot-danger';
+        } else if (step.type === 'stage_start') {
+          text = step.message || `Starting ${step.stage || 'stage'}...`;
+          statusClass = 'chat-progress-item-thinking';
+          iconClass = 'chat-progress-dot-thinking';
+        } else if (step.type === 'stage_done') {
+          const isSuccess = isStageDoneSuccessful(step.status);
+          text = getStageDoneLabel(step);
+          statusClass = isSuccess ? 'chat-progress-item-success' : 'chat-progress-item-danger';
+          iconClass = isSuccess ? 'chat-progress-dot-success' : 'chat-progress-dot-danger';
+        } else if (step.type === 'pipeline_timeout') {
+          text = step.message || `${step.stage || 'pipeline'} timed out`;
+          statusClass = 'chat-progress-item-danger';
+          iconClass = 'chat-progress-dot-danger';
+        } else if (step.type === 'pipeline_budget_skipped') {
+          text = getPipelineBudgetSkippedLabel(step);
+          statusClass = 'chat-progress-item-muted';
+          iconClass = 'chat-progress-dot-muted';
         } else if (step.type === 'generating') {
           text = step.message || CHAT_TEXT.generateAnalysis[language];
           statusClass = 'chat-progress-item-generating';
           iconClass = 'chat-progress-dot-generating';
+        } else {
+          text = step.message || step.type;
         }
         return (
           <div

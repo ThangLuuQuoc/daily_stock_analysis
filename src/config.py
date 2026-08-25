@@ -38,9 +38,12 @@ from src.notification_contracts import (
 )
 from src.llm.backend_registry import (
     AUTO_AGENT_BACKEND_ID,
-    CODEX_CLI_BACKEND_ID,
+    GENERATION_ONLY_BACKEND_IDS,
+    LOCAL_CLI_GENERATION_BACKEND_IDS,
     LITELLM_BACKEND_ID,
+    OPENCODE_CLI_BACKEND_ID,
     SUPPORTED_AGENT_GENERATION_BACKENDS,
+    SUPPORTED_AGENT_UI_BACKENDS,
     SUPPORTED_GENERATION_BACKENDS,
 )
 from src.llm.local_cli_backend import (
@@ -71,7 +74,7 @@ from src.scheduler import normalize_schedule_times
 logger = logging.getLogger(__name__)
 
 DEFAULT_ALPHASIFT_INSTALL_SPEC = (
-    "git+https://github.com/ZhuLinsen/alphasift.git@0a7b9cd59e81718f851890535241bc105d4ddc64"
+    "git+https://github.com/ZhuLinsen/alphasift.git@9f522747caafd3c0b1ddb7e14d5cf44c8580b6cf"
 )
 
 
@@ -785,6 +788,7 @@ class Config:
     generation_backend_max_output_bytes: int = DEFAULT_LOCAL_CLI_MAX_OUTPUT_BYTES
     generation_backend_max_concurrency: int = DEFAULT_GENERATION_BACKEND_MAX_CONCURRENCY
     local_cli_backend_max_concurrency: int = DEFAULT_LOCAL_CLI_BACKEND_MAX_CONCURRENCY
+    opencode_cli_model: str = ""
     # LiteLLM unified model config (provider/model format, e.g. gemini/gemini-3.1-pro-preview)
     litellm_model: str = ""  # Primary model; must include provider prefix when set explicitly
     litellm_fallback_models: List[str] = field(default_factory=list)  # Cross-model fallback list
@@ -913,6 +917,8 @@ class Config:
     feishu_webhook_url: Optional[str] = None
     feishu_webhook_secret: Optional[str] = None  # 自定义机器人签名密钥（可选）
     feishu_webhook_keyword: Optional[str] = None  # 自定义机器人关键词（可选）
+    dingtalk_webhook_url: Optional[str] = None
+    dingtalk_secret: Optional[str] = None
 
     # 飞书应用机器人（App Bot）通知
     feishu_chat_id: Optional[str] = None  # 目标群会话 chat_id（群聊模式），或用户 open_id（P2P 模式）
@@ -1520,6 +1526,7 @@ class Config:
             minimum=1,
             maximum=MAX_LOCAL_CLI_BACKEND_MAX_CONCURRENCY,
         )
+        opencode_cli_model = (os.getenv('OPENCODE_CLI_MODEL', '') or '').strip()
 
         agent_litellm_model = normalize_agent_litellm_model(
             os.getenv('AGENT_LITELLM_MODEL', ''),
@@ -1678,6 +1685,7 @@ class Config:
             generation_backend_max_output_bytes=generation_backend_max_output_bytes,
             generation_backend_max_concurrency=generation_backend_max_concurrency,
             local_cli_backend_max_concurrency=local_cli_backend_max_concurrency,
+            opencode_cli_model=opencode_cli_model,
             litellm_model=litellm_model,
             litellm_fallback_models=litellm_fallback_models,
             llm_temperature=resolve_unified_llm_temperature(litellm_model),
@@ -1834,6 +1842,9 @@ class Config:
             feishu_webhook_url=os.getenv('FEISHU_WEBHOOK_URL'),
             feishu_webhook_secret=os.getenv('FEISHU_WEBHOOK_SECRET'),
             feishu_webhook_keyword=os.getenv('FEISHU_WEBHOOK_KEYWORD'),
+            dingtalk_webhook_url=os.getenv('DINGTALK_WEBHOOK_URL'),
+            dingtalk_secret=os.getenv('DINGTALK_SECRET'),
+            
 
             feishu_chat_id=os.getenv('FEISHU_CHAT_ID'),
             feishu_receive_id_type=os.getenv('FEISHU_RECEIVE_ID_TYPE', 'chat_id'),
@@ -2719,11 +2730,10 @@ class Config:
         still requires a non-Hermes Agent route. Hermes-only deployments cannot
         satisfy Agent tool roundtrip support; mixed routes are usable only via
         their non-Hermes deployments. ``AGENT_MODE=false`` remains an explicit
-        kill-switch. Explicit ``AGENT_GENERATION_BACKEND=codex_cli`` is also
-        unavailable because codex_cli is a text generation backend, not an
-        Agent tool-calling runtime.
+        kill-switch. Explicit local CLI Agent backends are unavailable because
+        they are text generation backends, not Agent tool-calling runtimes.
         """
-        if (self.agent_generation_backend or AUTO_AGENT_BACKEND_ID).strip().lower() == CODEX_CLI_BACKEND_ID:
+        if (self.agent_generation_backend or AUTO_AGENT_BACKEND_ID).strip().lower() in GENERATION_ONLY_BACKEND_IDS:
             return False
         # Phase 3 no longer lets AGENT_MODE=true bypass tool-route safety.
         if self._agent_mode_explicit:
@@ -2841,7 +2851,8 @@ class Config:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "GENERATION_BACKEND 当前支持 litellm 或 codex_cli。"
+                    "GENERATION_BACKEND 当前支持 "
+                    f"{'、'.join(sorted(SUPPORTED_GENERATION_BACKENDS))}。"
                     f"已配置的值为：{generation_backend}。"
                 ),
                 field="GENERATION_BACKEND",
@@ -2858,24 +2869,55 @@ class Config:
                 field="GENERATION_FALLBACK_BACKEND",
             ))
         if agent_generation_backend not in SUPPORTED_AGENT_GENERATION_BACKENDS:
+            agent_ui_backends = "、".join(sorted(SUPPORTED_AGENT_UI_BACKENDS))
+            local_toolless_backends = "、".join(sorted(GENERATION_ONLY_BACKEND_IDS))
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "AGENT_GENERATION_BACKEND 当前支持 auto、litellm；"
-                    "codex_cli 仅作为显式 unsupported diagnostic 保留，不支持 Agent 工具调用。"
+                    f"AGENT_GENERATION_BACKEND 当前支持 {agent_ui_backends}；"
+                    f"local CLI backend（{local_toolless_backends}）仅作为显式 unsupported diagnostic 保留，"
+                    "不支持 Agent 工具调用。"
                     f"已配置的值为：{agent_generation_backend}。"
                 ),
                 field="AGENT_GENERATION_BACKEND",
             ))
-        if (self.litellm_model or "").strip().lower().startswith(f"{CODEX_CLI_BACKEND_ID}/"):
+        litellm_model_lower = (self.litellm_model or "").strip().lower()
+        local_model_prefix = next(
+            (
+                backend_id
+                for backend_id in GENERATION_ONLY_BACKEND_IDS
+                if litellm_model_lower.startswith(f"{backend_id}/")
+            ),
+            "",
+        )
+        if local_model_prefix:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "codex_cli 是 GENERATION_BACKEND，不是 LiteLLM provider。"
-                    "请不要使用 LITELLM_MODEL=codex_cli/...。"
+                    f"{local_model_prefix} 是 GENERATION_BACKEND，不是 LiteLLM provider。"
+                    f"请不要使用 LITELLM_MODEL={local_model_prefix}/...。"
                 ),
                 field="LITELLM_MODEL",
             ))
+        if generation_backend == OPENCODE_CLI_BACKEND_ID:
+            opencode_model = (self.opencode_cli_model or "").strip()
+            unsafe_model = bool(opencode_model) and (
+                any(ch.isspace() for ch in opencode_model)
+                or any(
+                    marker in opencode_model
+                    for marker in ("|", ">", "<", ";", "`", "&&", "||", "$")
+                )
+            )
+            if unsafe_model:
+                issues.append(ConfigIssue(
+                    severity="error",
+                    message=(
+                        "OPENCODE_CLI_MODEL 是可选的 OpenCode 模型覆盖值。"
+                        "配置时会作为单个 --model 参数传给 OpenCode，不能包含空白或 shell 元字符；"
+                        "不配置时 DSA 将使用 OpenCode 自身默认模型。"
+                    ),
+                    field="OPENCODE_CLI_MODEL",
+                ))
 
         # --- LLM availability ---
         for raw_issue in self.llm_channel_config_issues or []:
@@ -2890,7 +2932,7 @@ class Config:
         # Other LiteLLM-native providers (for example cohere/*) run through the
         # direct litellm env path and therefore do not populate llm_model_list.
         has_direct_env_model = bool(self.litellm_model) and _uses_direct_env_provider(self.litellm_model)
-        local_generation_backend = generation_backend == CODEX_CLI_BACKEND_ID
+        local_generation_backend = generation_backend in LOCAL_CLI_GENERATION_BACKEND_IDS
         if not local_generation_backend and not self.llm_model_list and not has_direct_env_model:
             if self.litellm_config_path:
                 issues.append(ConfigIssue(
@@ -3150,6 +3192,7 @@ class Config:
         for field, value in (
             ("WECHAT_WEBHOOK_URL", self.wechat_webhook_url),
             ("FEISHU_WEBHOOK_URL", self.feishu_webhook_url),
+            ("DINGTALK_WEBHOOK_URL", self.dingtalk_webhook_url),
             ("DISCORD_WEBHOOK_URL", self.discord_webhook_url),
             ("SLACK_WEBHOOK_URL", self.slack_webhook_url),
             ("ASTRBOT_URL", self.astrbot_url),

@@ -154,38 +154,23 @@ class MarketAnalyzer:
     def _log_context(self) -> str:
         return f"component=market_review region={self.region}"
 
-    def _get_review_language(self) -> str:
-        """Ngon ngu CAU TRUC cua bao cao phuc thi (nhan bang, heading, regex parse).
-
-        fork VN: `vi` dung cau truc tieng Anh, giong cach upstream ap cho `ko`
-        (v3.25.0 `market_analyzer.py`: `return "en" if language == "ko" else language`).
-        Noi dung van la tieng Viet nho output-language directive trong prompt;
-        chi 5 heading muc la tieng Anh. Doi lai: file nay giu nguyen ban upstream
-        (truoc day bi ghi de 139 dong / 23 hunk).
-
-        Quan trong: _ENGLISH_SECTION_PATTERNS / _CHINESE_SECTION_PATTERNS la
-        PARSER regex tach muc tu output LLM — neu prompt tieng Anh ma parser doi
-        heading tieng Viet thi tach muc se that bai am tham. Route `vi` -> `en`
-        giu prompt va parser cung mot ngon ngu.
-        """
-        language = normalize_report_language(
+    def _get_output_language(self) -> str:
+        """Return the truthful report language (zh/en/ko/vi) for payload and directives."""
+        return normalize_report_language(
             getattr(getattr(self, "config", None), "report_language", "zh")
         )
-        return "en" if language == "vi" else language
+
+    def _get_review_language(self) -> str:
+        # Structural/template language. Korean reuses the English scaffolding;
+        # the Korean output directive is applied in the prompt builder.
+        # fork VN: `vi` cung dung scaffolding tieng Anh — cung ly do, va vi
+        # _ENGLISH/_CHINESE_SECTION_PATTERNS la PARSER regex tach muc tu output
+        # LLM, nen prompt va parser bat buoc cung mot ngon ngu.
+        language = self._get_output_language()
+        return "en" if language in ("ko", "vi") else language
 
     def _get_template_review_language(self) -> str:
-        """Ngon ngu cho bao cao TEMPLATE (fallback khi LLM that bai).
-
-        fork VN: `vi` -> `en`. Duong nay KHONG qua LLM nen khong co
-        output-language directive de cuu; neu de `vi` thi no roi vao nhanh `else`
-        (= zh) va fallback se ra TIENG TRUNG. Tieng Anh la lua chon it xau nhat
-        cho nguoi dung Viet. Muon fallback tieng Viet that thi phai viet
-        _build_template_review ban vi (chua lam — xem plan Phase 3).
-        """
-        language = normalize_report_language(
-            getattr(getattr(self, "config", None), "report_language", "zh")
-        )
-        return "en" if language == "vi" else language
+        return self._get_review_language()
 
     def _get_market_scope_name(self, review_language: str | None = None) -> str:
         review_language = review_language or self._get_review_language()
@@ -778,7 +763,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         market_light_snapshot: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the structured market-review contract consumed by API, Web, and notifications."""
-        language = self._get_review_language()
+        language = self._get_output_language()
         sections = self._split_report_sections(report)
         title = self._extract_report_title(report) or self._get_review_title(overview.date).lstrip("# ").strip()
         light = (
@@ -935,11 +920,19 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             )
 
         if sector_block:
+            original_review = review
             review = self._insert_after_section(
                 review,
                 patterns["sector_highlights"],
                 sector_block,
             )
+            if review == original_review and sector_block not in review:
+                fallback_heading = (
+                    "### 4. Sector Highlights"
+                    if self._get_review_language() == "en"
+                    else "### 三、板块主线"
+                )
+                review = f"{review.rstrip()}\n\n{fallback_heading}\n{sector_block}\n"
 
         return review
 
@@ -1403,6 +1396,9 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     def _build_review_prompt(self, overview: MarketOverview, news: List) -> str:
         """构建复盘报告 Prompt"""
         review_language = self._get_review_language()
+        # Korean reuses the English structural template but the model is told to
+        # write the entire shell, headings, guidance and conclusion in Korean.
+        shell_language_label = "Korean (한국어)" if self._get_output_language() == "ko" else "English"
 
         # 指数行情信息（简洁格式，不用emoji）
         indices_text = ""
@@ -1536,7 +1532,7 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
 - No JSON
 - No code blocks
 - Use emoji sparingly in headings (at most one per heading)
-- The entire fixed shell, headings, guidance, and conclusion must be in English
+- The entire fixed shell, headings, guidance, and conclusion must be in {shell_language_label}
 {data_boundary_requirement}
 
 ---

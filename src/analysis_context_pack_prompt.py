@@ -101,11 +101,10 @@ SENSITIVE_MARKERS = (
 
 
 def normalize_analysis_context_pack_language(report_language: str = "zh") -> str:
-    # fork VN: `vi` dung nhan cau truc tieng Anh; mo hinh duoc rang buoc xuat
-    # tieng Viet qua output-language directive (analyzer.py). Day dung pattern
-    # upstream ap dung cho `ko` o v3.25.0 — khoi nay la INPUT mo ta trang thai
-    # du lieu, khong phai text nguoi dung doc, nen khong can dich.
-    return "en" if str(report_language or "").lower() in {"en", "vi"} else "zh"
+    # `ko` (upstream) va `vi` (fork VN) deu dung nhan cau truc tieng Anh; mo hinh
+    # duoc rang buoc ngon ngu xuat qua output-language directive. Khoi nay la INPUT
+    # mo ta trang thai du lieu, khong phai text nguoi dung doc, nen khong can dich.
+    return "en" if str(report_language or "").lower() in {"en", "ko", "vi"} else "zh"
 
 
 def get_analysis_context_pack_block_labels(report_language: str = "zh") -> Dict[str, str]:
