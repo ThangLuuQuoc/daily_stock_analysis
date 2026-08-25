@@ -95,7 +95,18 @@ vo lúc chay (khong phai canh bao):
 |---|---|
 | `src/services/empty_news.py` `_DISCLOSURES` | Upstream guard `if set(_DISCLOSURES) != set(SUPPORTED_REPORT_LANGUAGES): raise RuntimeError` chay **luc import**. Quen -> 186 RuntimeError + 88 ImportError day chuyen. |
 | `tests/test_notification_empty_news_disclosure.py` `EXPECTED` | Test upstream duyet `SUPPORTED_REPORT_LANGUAGES` roi tra `EXPECTED[language]` -> KeyError. |
+| `tests/test_market_review.py` (test `both`) | Cung goc: `both` co them vn nen (a) assert list region thieu 'vn', (b) `side_effect` chi mock 5 MarketAnalyzer -> region thu 6 gay StopIteration -> `result=None` -> TypeError. |
 | `tests/test_config_env_compat.py` (2 assert) | Fork them `vn` vao `MARKET_REVIEW_REGION_ORDER` nen `both` mo rong thanh `cn,hk,us,jp,kr,vn`. Assert cua upstream ky vong khong co `vn`. Day la **doi hanh vi co chu y** cua fork, khong phai bug. |
+
+
+> **Bay thu tu region**: fork dat `vn` **dau tien** trong
+> `src/core/market_review.py::_MARKET_REVIEW_MARKETS` (VN-first, thu tu CHAY va
+> thu tu HIEN trong bao cao) nhung `vn` **cuoi cung** trong
+> `src/utils/market_review_region.py::MARKET_REVIEW_REGION_ORDER` (thu tu
+> chuan hoa chuoi region). Hai thu tu nay KHAC NHAU co chu y. Khi mock
+> `MarketAnalyzer` bang `side_effect=[...]` phai theo thu tu cua
+> `_MARKET_REVIEW_MARKETS` (vn, cn, hk, us, jp, kr), khong phai theo
+> `MARKET_REVIEW_REGION_ORDER`.
 
 ### 1.1e Frontend: `vi` la overlay tren `en`, khong phai bang day du
 
