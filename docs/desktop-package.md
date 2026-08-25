@@ -8,6 +8,7 @@
 - Electron 启动时自动拉起后端服务，等待 `/api/health` 就绪后加载 UI
 - Windows 便携/安装模式下，用户配置文件 `.env` 和数据库放在 exe 同级目录；macOS 打包版使用 Electron 用户数据目录保存运行时配置
 - 桌面端会自动从本机 `8000-8100` 选择可用端口，并把实际选择的端口同步给内置后端；桌面端不依赖 `.env` 里的 `WEBUI_PORT` 来决定窗口连接地址，避免用户改端口后 Electron 仍等待旧端口导致启动超时
+- Desktop backend 默认随 `requirements.txt` 安装并冻结 `futu-api==10.8.6808`；Windows/macOS 构建脚本会在源码环境和 PyInstaller 产物中分别执行 `import futu`，防止发布包只安装但未携带 SDK。
 
 ## 本地开发
 
@@ -77,7 +78,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 
 ### macOS 提示“应用已损坏，无法打开”
 
-当前 macOS DMG 尚未使用 Apple Developer 证书签名和公证。通过浏览器下载后，macOS Gatekeeper 可能因此提示“Daily Stock Analysis 已损坏，无法打开”或“无法验证开发者”；这通常是系统对未签名、未公证应用的拦截，不代表 DMG 文件必然损坏。
+当前 macOS DMG 尚未使用 Apple Developer 证书签名和公证。构建配置会显式生成 unsigned 应用，在 PyInstaller 产物首次执行前清理残缺签名，并通过 electron-builder `afterPack` hook 在 DMG 创建前再次清理完整 `.app`；CI 还会检查 Electron 原始 `.app` 和 DMG 挂载后的 `.app`，阻止再次发布带有 `code has no resources but signature indicates they must be present` 等损坏签名的产物。该处理只能缓解 v3.27.0 的残缺签名缺陷，**不会让应用获得 Apple 信任**。通过浏览器下载后，macOS Gatekeeper 仍可能提示“无法验证开发者”、阻止启动，或要求用户人工确认。
 
 请按以下顺序排查：
 
@@ -89,7 +90,16 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 xattr -dr com.apple.quarantine "/Applications/Daily Stock Analysis.app"
 ```
 
-如果应用不在 `/Applications`，请将命令中的路径替换为实际 `.app` 路径。不要对整个“应用程序”目录执行 `xattr`，也不要对来源不明的应用执行此命令。长期彻底消除该提示需要在发布流程中接入 Apple Developer 签名与 notarization（公证），不属于上述临时放行步骤。
+如果应用不在 `/Applications`，请将命令中的路径替换为实际 `.app` 路径。不要对整个“应用程序”目录执行 `xattr`，也不要对来源不明的应用执行此命令。不同 macOS 版本可能仍拒绝 unsigned 应用，清除 quarantine 不保证能够放行。长期彻底消除该提示需要在发布流程中接入 Apple Developer 签名与 notarization（公证），不属于上述临时放行步骤。
+
+维护者可用以下命令区分“预期的 unsigned 拒绝”和“不可发布的残缺签名”：
+
+```bash
+codesign -d "/Applications/Daily Stock Analysis.app"
+spctl --assess --type execute --verbose=4 "/Applications/Daily Stock Analysis.app"
+```
+
+当前 unsigned 产物的 `codesign -d` 预期包含 `code object is not signed at all`，`spctl` 预期拒绝；如果输出 `code has no resources but signature indicates they must be present` 或其它签名损坏信息，应视为发布阻断。
 
 建议发布流程：
 
@@ -206,7 +216,7 @@ npm install
 npm run build
 ```
 
-2) 按现有脚本打包 Python 后端（脚本已内置 AlphaSift 与 AkShare 数据文件收集）
+2) 按现有脚本打包 Python 后端（脚本已内置 AlphaSift、Futu SDK 与 AkShare 数据文件收集）
 
 - Windows：
 
@@ -220,7 +230,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build-backend.ps1
 bash scripts/build-backend-macos.sh
 ```
 
-该脚本会在安装依赖后执行 `--collect-all alphasift` 和 `--collect-data akshare`。构建完成后会校验 `alphasift.dsa_adapter` 可导入，并确认 AkShare 的 `file_fold/calendar.json` 已进入冻结产物，避免发行包在热点题材或日线增强路径中因缺少 package data 降级。
+该脚本会在安装依赖后执行 `--collect-all alphasift`、`--collect-all futu` 和 `--collect-data akshare`。构建完成后会通过冻结可执行文件校验 `alphasift.dsa_adapter`、`futu`、`orjson` 均可导入，并确认 AkShare 的 `file_fold/calendar.json` 已进入冻结产物，避免发行包在热点题材、Futu 持仓导入或日线增强路径中因缺少依赖/package data 降级。PR 主 CI 在 `requirements.txt`、Futu broker、Desktop 打包入口或相关 workflow 变化时，会分别运行 `desktop-futu-package-windows` 与 `desktop-futu-package-macos` 阻断检查。
 
 3) 打包 Electron 桌面应用
 
