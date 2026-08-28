@@ -1,5 +1,9 @@
 # Khởi động toàn hệ thống (local dev)
 
+> **Máy mới?** Đọc `openstockV1/docs/NEW_MACHINE_SETUP.md` trước — tài liệu đó
+> bao cả hai repo theo đúng thứ tự phụ thuộc (OpenStock là nguồn dữ liệu, phải
+> dựng trước), kèm các chỗ vấp thật. Tài liệu này là chi tiết riêng của DSA.
+
 Tài liệu này mô tả cách bật **toàn bộ stack local** cho `daily_stock_analysis` ở thị trường VN: nguồn dữ liệu (OpenStock), gateway LLM miễn phí (freellmapi), backend/CLI phân tích, và web dashboard. Dành cho cả **người dev** và **AI agent** khi cần biết thứ tự + lệnh khởi động.
 
 > Mọi lệnh chạy trên Windows. Shell mặc định PowerShell; các block dưới đây viết kiểu POSIX (Git Bash) — đổi cú pháp env (`A=B cmd`) sang PowerShell (`$env:A='B'; cmd`) nếu cần.
