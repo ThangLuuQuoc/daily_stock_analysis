@@ -69,7 +69,11 @@ class TestStockIndexLoader(unittest.TestCase):
     def test_default_candidate_paths_prefer_remote_cache(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             remote_cache = Path(temp_dir) / "data" / "cache" / "stocks.index.json"
-            with patch.object(
+            # fork VN: mac dinh la chi muc VN (stocks.index.vn.json) nen phai ghim
+            # STOCK_INDEX_MARKET=cn de test HANH VI UPSTREAM. Test nay kiem THU TU
+            # duong dan (remote cache -> public -> static), khong phai ten file;
+            # che do vn co test rieng o tests/test_stock_index_vn.py.
+            with patch.dict(os.environ, {"STOCK_INDEX_MARKET": "cn"}), patch.object(
                 stock_index_loader,
                 "get_remote_stock_index_cache_path",
                 return_value=remote_cache,

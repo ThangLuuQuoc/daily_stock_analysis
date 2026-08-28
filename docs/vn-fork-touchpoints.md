@@ -96,6 +96,7 @@ vo lúc chay (khong phai canh bao):
 | `src/services/empty_news.py` `_DISCLOSURES` | Upstream guard `if set(_DISCLOSURES) != set(SUPPORTED_REPORT_LANGUAGES): raise RuntimeError` chay **luc import**. Quen -> 186 RuntimeError + 88 ImportError day chuyen. |
 | `tests/test_notification_empty_news_disclosure.py` `EXPECTED` | Test upstream duyet `SUPPORTED_REPORT_LANGUAGES` roi tra `EXPECTED[language]` -> KeyError. |
 | `tests/test_market_review.py` (test `both`) | Cung goc: `both` co them vn nen (a) assert list region thieu 'vn', (b) `side_effect` chi mock 5 MarketAnalyzer -> region thu 6 gay StopIteration -> `result=None` -> TypeError. |
+| `tests/test_stock_index_loader.py` (`test_default_candidate_paths_prefer_remote_cache`) | Fork doi mac dinh chi muc sang `stocks.index.vn.json` nen assert ten file cua upstream do. Da ghim `STOCK_INDEX_MARKET=cn` trong test do — no kiem THU TU duong dan, khong phai ten file. Che do vn co test rieng. |
 | `tests/test_config_env_compat.py` (2 assert) | Fork them `vn` vao `MARKET_REVIEW_REGION_ORDER` nen `both` mo rong thanh `cn,hk,us,jp,kr,vn`. Assert cua upstream ky vong khong co `vn`. Day la **doi hanh vi co chu y** cua fork, khong phai bug. |
 
 
