@@ -23,10 +23,23 @@ export interface IndexLoadResult {
  *
  * @returns Index load result
  */
+// fork VN: repo nay phuc vu thi truong Viet Nam nen MAC DINH dung chi muc VN
+// (stocks.index.vn.json, sinh boi scripts/generate_vn_index.py tu OpenStock).
+// Chi muc cua upstream (stocks.index.json) khong co MOT ma VN nao — ke ca
+// VNINDEX lan FPT/VIC — nen de mac dinh do thi o tim kiem khong goi y duoc gi.
+//
+// Doi thi truong: VITE_STOCK_INDEX_MARKET=cn  (khop STOCK_INDEX_MARKET phia
+// Python trong src/data/stock_index_market.py — hai ben phai dat GIONG NHAU,
+// neu khong frontend va backend se tra ten khac nhau cho cung mot ma).
+export function stockIndexFilename(): string {
+  const market = (import.meta.env?.VITE_STOCK_INDEX_MARKET ?? 'vn').toString().trim().toLowerCase();
+  return market === 'cn' || market === 'upstream' ? 'stocks.index.json' : 'stocks.index.vn.json';
+}
+
 export async function loadStockIndex(): Promise<IndexLoadResult> {
   try {
     // Add time parameter to bypass cache (in case the backend doesn't handle ETag/Cache-Control)
-    const response = await fetch(`/stocks.index.json?_t=${Math.floor(Date.now() / 3600000)}`);
+    const response = await fetch(`/${stockIndexFilename()}?_t=${Math.floor(Date.now() / 3600000)}`);
 
     if (!response.ok) {
       throw new Error(`Failed to load index: ${response.status} ${response.statusText}`);

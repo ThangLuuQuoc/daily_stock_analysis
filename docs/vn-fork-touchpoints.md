@@ -203,6 +203,68 @@ Ba nguyen tac chung cho moi bang tra cuu tren:
 Moi bang deu co test quet nguoc: khoa nao khong con ton tai trong file upstream
 thi do ngay (upstream doi thong bao -> phat hien lien, khong am tham thoi dich).
 
+### 1.1i Chi muc autocomplete — MAC DINH la thi truong VN
+
+`stocks.index.json` cua upstream co ~31.700 muc CN/HK/US/JP/KR va **khong co MOT
+ma VN nao** — ke ca VNINDEX lan FPT/VIC. Hau qua truoc khi sua:
+
+  * go "FPT" trong o tim kiem khong ra goi y nao;
+  * lich su phan tich hien `FPT(FPT)`, `HPG`, `KSB` tran trui vi khong tra duoc
+    ten day du (nhung ma CO ten la do LLM/OpenStock tra ve, khong phai tu chi muc).
+
+Repo nay phuc vu thi truong VN nen **mac dinh la `vn`**:
+
+| Bien | Mac dinh | Doi ve upstream |
+|---|---|---|
+| `STOCK_INDEX_MARKET` (Python) | `vn` -> `stocks.index.vn.json` | `cn` -> `stocks.index.json` |
+| `VITE_STOCK_INDEX_MARKET` (frontend) | `vn` | `cn` |
+
+**Hai bien phai dat GIONG NHAU.** Lech nhau thi frontend va backend tra ten khac
+nhau cho cung mot ma.
+
+File fork tu so huu:
+  * `scripts/generate_vn_index.py` — sinh chi muc tu OpenStock `GET /stocks`
+    (3.616 ma) + seed chi so.
+  * `scripts/stock_index_seeds/vn_index_registry.csv` — 5 chi so VN (VNINDEX,
+    VN30, VN100, HNXINDEX, UPCOMINDEX).
+  * `src/data/stock_index_market.py` — cong tac chon thi truong.
+  * `apps/dsa-web/public/stocks.index.vn.json` + `static/...` — dau ra (sinh lai
+    duoc, khong sua tay).
+
+Hook trong file upstream chi 2 cho, deu nho:
+  * `src/data/stock_index_loader.py::get_stock_index_candidate_paths()` — doi ten
+    file theo thi truong.
+  * `apps/dsa-web/src/utils/stockIndexLoader.ts` — them `stockIndexFilename()`.
+
+**VI SAO KHONG dung registry chi so moi cua upstream** (`generate_index_from_csv.py
+--index-only`, them o commit 1b429076): no khoa cung cho A-share —
+
+```python
+if not _INDEX_NAMESPACE_RE.match(canonical):   # ^(sh|sz|csi)\d{6}$
+    raise ValueError(...)
+if market != "CN":
+    raise ValueError(f"index market must be CN: {canonical!r}")
+```
+
+`VNINDEX` truot ca hai. Nhet ma VN vao do buoc phai sua validator cua upstream —
+dung kieu ghi de ma muc 1.1f cam.
+
+**BAY**: `run_index_only()` **xoa sach moi dong `assetType=index`** roi ghi lai tu
+seed cua chinh no. Neu ai do them chi so VN thang vao `stocks.index.json`, lan
+chay `--index-only` ke tiep se xoa mat ma khong bao gi. Do la ly do thu hai phai
+dung file RIENG.
+
+Sinh lai chi muc (can OpenStock dang chay o :3000):
+
+```bash
+python scripts/generate_vn_index.py          # ghi file
+python scripts/generate_vn_index.py --test   # chi kiem tra
+```
+
+**Khoang trong da biet**: 1.896/3.616 ma trong OpenStock co `name == symbol`
+(khong co ten that) nen bi loc khoi *name map*, tuy van dung duoc cho autocomplete.
+Trong so do 218 ma co the va them tu bang `company_overview` — chua lam.
+
 ### 1.2 Config
 
 | File | Vị trí | Loại | Lý do |
